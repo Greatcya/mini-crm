@@ -1,0 +1,16 @@
+services:
+  crm_db:
+    image: postgres:15-alpine
+    container_name: crm_postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: crm_user
+      POSTGRES_PASSWORD: crm_password
+      POSTGRES_DB: mini_crm
+    ports:
+      - "5432:5432"
+    volumes:
+      - crm_db_data:/var/lib/postgresql/data
+
+volumes:
+  crm_db_data:

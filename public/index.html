@@ -1,0 +1,1423 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Мини-CRM для учета клиентов и сделок">
+  <title>Контур — мини-CRM</title>
+  <style>
+    :root {
+      --paper: #f2f0e9;
+      --card: #fffefa;
+      --ink: #17241d;
+      --muted: #6d756e;
+      --line: #dddcd2;
+      --accent: #136f52;
+      --accent-dark: #0b4d39;
+      --accent-soft: #e4efe8;
+      --amber: #a86a18;
+      --amber-soft: #f7ecd9;
+      --red: #a83b32;
+      --red-soft: #f7e5e2;
+      --blue: #2f5e8c;
+      --blue-soft: #e6edf5;
+      --shadow: 0 24px 60px rgba(27, 43, 34, 0.09);
+      --radius: 18px;
+    }
+
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 8% 5%, rgba(19, 111, 82, 0.10), transparent 27rem),
+        radial-gradient(circle at 95% 30%, rgba(168, 106, 24, 0.08), transparent 26rem),
+        var(--paper);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      min-height: 72px;
+      padding: 0 clamp(20px, 5vw, 64px);
+      border-bottom: 1px solid rgba(221, 220, 210, 0.8);
+      background: rgba(242, 240, 233, 0.82);
+      backdrop-filter: blur(18px);
+    }
+
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 11px;
+      background: var(--ink);
+      color: #f9f7f0;
+    }
+    .brand-mark svg { width: 19px; height: 19px; }
+    .brand-name {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 19px;
+      letter-spacing: 0.01em;
+    }
+    .brand-name span { color: var(--muted); font-family: inherit; font-size: 13px; }
+
+    .topbar-right { display: flex; align-items: center; gap: 18px; }
+    .top-date {
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .user-chip { display: flex; align-items: center; gap: 10px; }
+    .avatar {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      color: var(--accent-dark);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .user-meta { display: grid; line-height: 1.25; }
+    .user-meta strong { font-size: 13px; }
+    .user-meta span { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; }
+    .icon-button {
+      display: grid;
+      place-items: center;
+      width: 36px;
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      transition: 0.18s ease;
+    }
+    .icon-button:hover { color: var(--ink); border-color: var(--ink); background: var(--card); }
+
+    .auth-view {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(360px, 440px);
+      gap: clamp(32px, 7vw, 100px);
+      align-items: start;
+      width: min(1200px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: clamp(44px, 8vh, 96px) 0 72px;
+    }
+    .eyebrow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    .eyebrow::before { content: ""; width: 28px; height: 1px; background: currentColor; }
+    .auth-copy h1 {
+      max-width: 690px;
+      margin: 0 0 22px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(42px, 6vw, 72px);
+      font-weight: 400;
+      line-height: 0.98;
+      letter-spacing: -0.035em;
+    }
+    .auth-copy h1 em { color: var(--accent); font-style: italic; }
+    .auth-copy > p {
+      max-width: 500px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.65;
+    }
+    .auth-points {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      max-width: 580px;
+      margin-top: 42px;
+    }
+    .auth-point {
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+    .auth-point strong { display: block; margin-bottom: 5px; font-family: Georgia, serif; font-size: 24px; font-weight: 400; }
+    .auth-point span { color: var(--muted); font-size: 11px; line-height: 1.4; letter-spacing: 0.04em; text-transform: uppercase; }
+
+    .auth-card {
+      position: relative;
+      padding: clamp(26px, 4vw, 38px);
+      border: 1px solid rgba(221, 220, 210, 0.9);
+      border-radius: 22px;
+      background: var(--card);
+      box-shadow: var(--shadow);
+    }
+    .auth-card::before {
+      content: "SECURE ACCESS";
+      position: absolute;
+      top: 18px;
+      right: 22px;
+      color: #a7ada7;
+      font-size: 8px;
+      letter-spacing: 0.15em;
+    }
+    .auth-card h2 {
+      margin: 18px 0 8px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 29px;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+    }
+    .auth-card > p { margin: 0 0 28px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .field { display: grid; gap: 8px; margin-bottom: 17px; }
+    .field label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      min-height: 46px;
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      outline: none;
+      background: #fff;
+      color: var(--ink);
+      transition: 0.18s ease;
+    }
+    .field textarea { resize: vertical; min-height: 82px; }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(19, 111, 82, 0.11);
+    }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-error {
+      display: none;
+      margin: 0 0 15px;
+      padding: 10px 12px;
+      border-radius: 9px;
+      background: var(--red-soft);
+      color: var(--red);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .form-error.visible { display: block; }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 0 17px;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      transition: 0.18s ease;
+    }
+    .button:disabled { cursor: wait; opacity: 0.6; }
+    .button-primary { background: var(--accent); color: #fff; }
+    .button-primary:hover:not(:disabled) { background: var(--accent-dark); }
+    .button-dark { background: var(--ink); color: #fff; }
+    .button-dark:hover:not(:disabled) { background: #2b3b32; }
+    .button-ghost { border-color: var(--line); background: transparent; color: var(--ink); }
+    .button-ghost:hover:not(:disabled) { border-color: var(--ink); background: #fff; }
+    .button-danger { color: var(--red); border-color: transparent; background: var(--red-soft); }
+    .button-danger:hover:not(:disabled) { background: #f0d4d0; }
+    .button-wide { width: 100%; min-height: 48px; }
+
+    .demo-access {
+      margin-top: 24px;
+      padding-top: 17px;
+      border-top: 1px dashed var(--line);
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.7;
+    }
+    .demo-access code {
+      padding: 2px 5px;
+      border-radius: 4px;
+      background: #f2f2eb;
+      color: var(--ink);
+      font-size: 10px;
+    }
+
+    .app-view {
+      width: min(1440px, calc(100% - 40px));
+      margin: 0 auto;
+      padding: 38px 0 64px;
+    }
+    .workspace-head {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 22px;
+      margin-bottom: 25px;
+    }
+    .workspace-head h1 {
+      margin: 0 0 4px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(31px, 4vw, 44px);
+      font-weight: 400;
+      letter-spacing: -0.03em;
+    }
+    .workspace-head p { margin: 0; color: var(--muted); font-size: 13px; }
+    .head-actions { display: flex; gap: 9px; flex-wrap: wrap; }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(270px, 330px) minmax(0, 1fr);
+      gap: 22px;
+      align-items: start;
+    }
+
+    .dashboard {
+      position: sticky;
+      top: 94px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      box-shadow: 0 14px 36px rgba(27, 43, 34, 0.05);
+    }
+    .dashboard-main { padding: 24px 24px 20px; background: var(--ink); color: #f7f4eb; }
+    .dashboard-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 21px;
+      color: #aeb8b1;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+    .live-dot { display: inline-flex; align-items: center; gap: 6px; color: #a9d6bd; letter-spacing: 0.04em; }
+    .live-dot::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #67c897;
+      box-shadow: 0 0 0 4px rgba(103, 200, 151, 0.1);
+    }
+    .dashboard-total {
+      margin-bottom: 4px;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(31px, 3.2vw, 40px);
+      font-weight: 400;
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+      word-break: break-word;
+    }
+    .dashboard-caption { color: #9eaaa2; font-size: 11px; }
+    .dashboard-stats { display: grid; grid-template-columns: 1fr 1fr; margin-top: 22px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+    .dashboard-stat { padding-top: 15px; }
+    .dashboard-stat + .dashboard-stat { padding-left: 17px; border-left: 1px solid rgba(255, 255, 255, 0.12); }
+    .dashboard-stat strong { display: block; margin-bottom: 3px; font-size: 18px; font-weight: 600; }
+    .dashboard-stat span { color: #9eaaa2; font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .dashboard-section { padding: 21px 24px 23px; }
+    .section-heading {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 17px;
+    }
+    .section-heading strong { font-size: 11px; letter-spacing: 0.09em; text-transform: uppercase; }
+    .section-heading span { color: var(--muted); font-size: 10px; }
+    .status-line { display: grid; gap: 6px; margin-bottom: 14px; }
+    .status-line:last-child { margin-bottom: 0; }
+    .status-meta { display: flex; justify-content: space-between; gap: 10px; font-size: 11px; }
+    .status-meta span { color: var(--muted); }
+    .status-meta strong { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .meter { overflow: hidden; height: 4px; border-radius: 9px; background: #efeee7; }
+    .meter > i { display: block; height: 100%; border-radius: 9px; background: var(--accent); transition: width 0.45s ease; }
+    .meter > i.won { background: #4c9b75; }
+    .meter > i.in_progress { background: #d2a24d; }
+    .meter > i.lost { background: #c47a72; }
+    .dashboard-foot {
+      padding: 13px 24px;
+      border-top: 1px solid var(--line);
+      color: #8c938d;
+      font-size: 9px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .panel {
+      min-width: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      box-shadow: 0 14px 36px rgba(27, 43, 34, 0.05);
+    }
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 19px 22px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .view-tabs { display: flex; align-items: center; gap: 5px; }
+    .view-tab {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 34px;
+      padding: 0 12px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .view-tab:hover { color: var(--ink); }
+    .view-tab.active { background: var(--ink); color: #fff; }
+    .view-tab small { opacity: 0.62; font-size: 10px; font-weight: 500; }
+    .panel-note { color: var(--muted); font-size: 10px; white-space: nowrap; }
+
+    .filters {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 13px 22px;
+      border-bottom: 1px solid var(--line);
+      scrollbar-width: none;
+    }
+    .filters::-webkit-scrollbar { display: none; }
+    .filter {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 30px;
+      padding: 0 10px;
+      border: 1px solid transparent;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+      transition: 0.16s ease;
+    }
+    .filter:hover { color: var(--ink); background: #f4f3ed; }
+    .filter.active { border-color: var(--line); background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(27, 43, 34, 0.06); }
+    .filter b { font-size: 10px; font-weight: 600; opacity: 0.55; }
+
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead th {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      color: #8a918b;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-align: left;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    thead th:first-child, tbody td:first-child { padding-left: 22px; }
+    thead th:last-child, tbody td:last-child { padding-right: 22px; }
+    tbody td { padding: 14px; border-bottom: 1px solid #edede6; vertical-align: middle; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr { transition: background 0.14s ease; }
+    tbody tr:hover { background: #faf9f4; }
+    .cell-main { display: grid; gap: 3px; min-width: 130px; }
+    .cell-main strong { font-size: 12px; font-weight: 600; }
+    .cell-main span { overflow: hidden; max-width: 250px; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .num strong { font-weight: 600; }
+    .date-cell { color: var(--muted); font-size: 10px; white-space: nowrap; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge::before { content: ""; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+    .status-new { background: var(--blue-soft); color: var(--blue); }
+    .status-in_progress { background: var(--amber-soft); color: var(--amber); }
+    .status-won { background: var(--accent-soft); color: var(--accent-dark); }
+    .status-lost { background: var(--red-soft); color: var(--red); }
+    .status-active { background: var(--accent-soft); color: var(--accent-dark); }
+    .status-inactive { background: #ecece7; color: #747a75; }
+    .status-vip { background: #f3ead6; color: #8d631f; }
+    .row-action {
+      display: inline-grid;
+      place-items: center;
+      width: 27px;
+      height: 27px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      color: #a0a6a1;
+      font-size: 14px;
+    }
+    .row-action:hover { border-color: #ecd3cf; background: var(--red-soft); color: var(--red); }
+    .row-actions { text-align: right; }
+
+    .empty-state { padding: 58px 24px; text-align: center; }
+    .empty-mark {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 14px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      color: #a9ada8;
+      font-family: Georgia, serif;
+      font-size: 20px;
+    }
+    .empty-state strong { display: block; margin-bottom: 5px; font-family: Georgia, serif; font-size: 18px; font-weight: 400; }
+    .empty-state p { margin: 0; color: var(--muted); font-size: 11px; }
+    .skeleton {
+      display: block;
+      height: 11px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #eeede7 25%, #f8f7f2 50%, #eeede7 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.2s infinite linear;
+    }
+    .skeleton.short { width: 60%; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+
+    dialog {
+      width: min(470px, calc(100% - 32px));
+      max-height: calc(100vh - 40px);
+      overflow-y: auto;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: var(--card);
+      color: var(--ink);
+      box-shadow: 0 32px 80px rgba(20, 32, 25, 0.28);
+    }
+    dialog::backdrop { background: rgba(16, 27, 21, 0.52); backdrop-filter: blur(3px); }
+    .dialog-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 24px 24px 0; }
+    .dialog-head h2 { margin: 0 0 5px; font-family: Georgia, serif; font-size: 24px; font-weight: 400; }
+    .dialog-head p { margin: 0; color: var(--muted); font-size: 11px; }
+    .dialog-close { border: 0; background: transparent; color: var(--muted); font-size: 22px; line-height: 1; }
+    .dialog-close:hover { color: var(--ink); }
+    .dialog-body { padding: 22px 24px 5px; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; padding: 17px 24px 23px; }
+    .field-hint { color: var(--muted); font-size: 10px; }
+
+    .toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 100;
+      max-width: min(360px, calc(100% - 48px));
+      padding: 13px 16px;
+      border-radius: 10px;
+      background: var(--ink);
+      color: #fff;
+      box-shadow: 0 18px 40px rgba(20, 32, 25, 0.25);
+      font-size: 12px;
+      line-height: 1.5;
+      transform: translateY(18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.24s ease;
+    }
+    .toast.visible { transform: translateY(0); opacity: 1; }
+    .toast.error { background: #7e2e27; }
+
+    @media (max-width: 980px) {
+      .auth-view { grid-template-columns: 1fr; max-width: 680px; padding-top: 42px; }
+      .auth-copy h1 { font-size: clamp(40px, 9vw, 62px); }
+      .auth-card { max-width: 480px; }
+      .layout { grid-template-columns: 1fr; }
+      .dashboard { position: static; display: grid; grid-template-columns: 1.2fr 1fr; }
+      .dashboard-main { grid-row: span 2; }
+      .dashboard-section { padding-top: 18px; }
+      .dashboard-foot { display: none; }
+    }
+    @media (max-width: 680px) {
+      .topbar { min-height: 64px; padding: 0 20px; }
+      .top-date, .user-meta { display: none; }
+      .auth-view, .app-view { width: calc(100% - 28px); }
+      .auth-points { grid-template-columns: 1fr; gap: 0; margin-top: 30px; }
+      .auth-point { padding: 10px 0; }
+      .workspace-head { align-items: flex-start; flex-direction: column; }
+      .dashboard { display: block; }
+      .panel-head { flex-wrap: wrap; }
+      .panel-note { display: none; }
+      .filters { padding: 11px 14px; }
+      thead th:first-child, tbody td:first-child { padding-left: 14px; }
+      thead th:last-child, tbody td:last-child { padding-right: 14px; }
+      .field-row { grid-template-columns: 1fr; gap: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+          <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5z"/>
+          <path d="M4 7.5 12 12l8-4.5M12 12v9"/>
+        </svg>
+      </div>
+      <div class="brand-name">Контур <span>/ mini-crm</span></div>
+    </div>
+    <div class="topbar-right">
+      <div class="top-date" id="topDate"></div>
+      <div class="user-chip" id="userChip" hidden>
+        <div class="avatar" id="userAvatar">—</div>
+        <div class="user-meta">
+          <strong id="userName">—</strong>
+          <span id="userRole">—</span>
+        </div>
+        <button class="icon-button" id="logoutButton" type="button" title="Выйти" aria-label="Выйти">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="auth-view" id="authView">
+      <div class="auth-copy">
+        <div class="eyebrow">CRM для команды продаж</div>
+        <h1>Клиенты, сделки и <em>выручка</em> в одном контуре.</h1>
+        <p>Компактная система учета: воронка сделок, клиентская база и живая аналитика на PostgreSQL. Без лишних экранов и ручных сводок.</p>
+        <div class="auth-points">
+          <div class="auth-point"><strong>04</strong><span>сущности в одной модели</span></div>
+          <div class="auth-point"><strong>JWT</strong><span>роли admin и manager</span></div>
+          <div class="auth-point"><strong>SQL</strong><span>агрегаты в реальном времени</span></div>
+        </div>
+      </div>
+
+      <div class="auth-card">
+        <h2>Вход в систему</h2>
+        <p>Введите учетные данные, чтобы открыть рабочий стол.</p>
+        <div class="form-error" id="loginError" role="alert"></div>
+        <form id="loginForm" autocomplete="on">
+          <div class="field">
+            <label for="username">Логин</label>
+            <input id="username" name="username" type="text" autocomplete="username" placeholder="admin" required>
+          </div>
+          <div class="field">
+            <label for="password">Пароль</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="••••••••" required>
+          </div>
+          <button class="button button-primary button-wide" id="loginButton" type="submit">Войти в рабочий стол</button>
+        </form>
+        <div class="demo-access">
+          Демо-доступ: <code>admin / admin123</code> — полные права.<br>
+          <code>manager / manager123</code> — создание и просмотр.
+        </div>
+      </div>
+    </section>
+
+    <section class="app-view" id="appView" hidden>
+      <div class="workspace-head">
+        <div>
+          <h1>Рабочий стол</h1>
+          <p id="welcomeLine">Сводка по клиентам и сделкам</p>
+        </div>
+        <div class="head-actions">
+          <button class="button button-ghost" id="newClientButton" type="button">+ Клиент</button>
+          <button class="button button-dark" id="newDealButton" type="button">+ Новая сделка</button>
+        </div>
+      </div>
+
+      <div class="layout">
+        <aside class="dashboard" aria-label="Дашборд">
+          <div class="dashboard-main">
+            <div class="dashboard-label">
+              <span>Общая сумма сделок</span>
+              <span class="live-dot">live</span>
+            </div>
+            <div class="dashboard-total" id="totalAmount">—</div>
+            <div class="dashboard-caption">Все статусы · PostgreSQL aggregate</div>
+            <div class="dashboard-stats">
+              <div class="dashboard-stat">
+                <strong id="totalDeals">—</strong>
+                <span>сделок</span>
+              </div>
+              <div class="dashboard-stat">
+                <strong id="totalClients">—</strong>
+                <span>клиентов</span>
+              </div>
+            </div>
+          </div>
+          <div class="dashboard-section">
+            <div class="section-heading">
+              <strong>Воронка по статусам</strong>
+              <span>шт. / сумма</span>
+            </div>
+            <div id="statusBreakdown">
+              <div class="status-line"><span class="skeleton"></span></div>
+              <div class="status-line"><span class="skeleton short"></span></div>
+              <div class="status-line"><span class="skeleton"></span></div>
+            </div>
+          </div>
+          <div class="dashboard-foot" id="dashboardFoot">Обновлено —</div>
+        </aside>
+
+        <section class="panel" aria-label="Сделки и клиенты">
+          <div class="panel-head">
+            <div class="view-tabs" role="tablist" aria-label="Раздел данных">
+              <button class="view-tab active" type="button" data-view="deals" role="tab" aria-selected="true">
+                Сделки <small id="dealsCount">0</small>
+              </button>
+              <button class="view-tab" type="button" data-view="clients" role="tab" aria-selected="false">
+                Клиенты <small id="clientsCount">0</small>
+              </button>
+            </div>
+            <div class="panel-note">Обновление без перезагрузки страницы</div>
+          </div>
+
+          <div id="dealsView">
+            <div class="filters" id="filters" role="group" aria-label="Фильтр сделок по статусу">
+              <button class="filter active" type="button" data-status="all">Все <b id="countAll">0</b></button>
+              <button class="filter" type="button" data-status="new">Новые <b id="countNew">0</b></button>
+              <button class="filter" type="button" data-status="in_progress">В работе <b id="countProgress">0</b></button>
+              <button class="filter" type="button" data-status="won">Выиграны <b id="countWon">0</b></button>
+              <button class="filter" type="button" data-status="lost">Проиграны <b id="countLost">0</b></button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Клиент</th>
+                    <th>Сделка</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                    <th>Дата</th>
+                    <th class="row-actions">Действие</th>
+                  </tr>
+                </thead>
+                <tbody id="dealsBody"></tbody>
+              </table>
+              <div class="empty-state" id="dealsEmpty" hidden>
+                <div class="empty-mark">◇</div>
+                <strong>Сделок пока нет</strong>
+                <p>Нажмите «Новая сделка», чтобы добавить первую запись.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="clientsView" hidden>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Клиент</th>
+                    <th>Контакты</th>
+                    <th>Статус</th>
+                    <th>Сделок</th>
+                    <th>Сумма</th>
+                    <th class="row-actions">Действие</th>
+                  </tr>
+                </thead>
+                <tbody id="clientsBody"></tbody>
+              </table>
+              <div class="empty-state" id="clientsEmpty" hidden>
+                <div class="empty-mark">◇</div>
+                <strong>Клиентов пока нет</strong>
+                <p>Добавьте первого клиента, затем создайте для него сделку.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="dealDialog">
+    <form id="dealForm">
+      <div class="dialog-head">
+        <div>
+          <h2>Новая сделка</h2>
+          <p>Сделка будет привязана к выбранному клиенту.</p>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="dealDialog" aria-label="Закрыть">×</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-error" id="dealError" role="alert"></div>
+        <div class="field">
+          <label for="dealClient">Клиент</label>
+          <select id="dealClient" name="client_id" required></select>
+        </div>
+        <div class="field">
+          <label for="dealTitle">Название сделки</label>
+          <input id="dealTitle" name="title" type="text" maxlength="200" placeholder="Внедрение CRM" required>
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="dealAmount">Сумма, ₽</label>
+            <input id="dealAmount" name="amount" type="number" min="0" step="0.01" placeholder="250000" required>
+          </div>
+          <div class="field">
+            <label for="dealStatus">Статус</label>
+            <select id="dealStatus" name="status">
+              <option value="new">Новая</option>
+              <option value="in_progress">В работе</option>
+              <option value="won">Выиграна</option>
+              <option value="lost">Проиграна</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="dealDescription">Комментарий</label>
+          <textarea id="dealDescription" name="description" maxlength="4000" placeholder="Детали сделки, следующий шаг…"></textarea>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button class="button button-ghost" type="button" data-close-dialog="dealDialog">Отмена</button>
+        <button class="button button-primary" id="dealSubmit" type="submit">Создать сделку</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="clientDialog">
+    <form id="clientForm">
+      <div class="dialog-head">
+        <div>
+          <h2>Новый клиент</h2>
+          <p>Заполните карточку компании или частного лица.</p>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="clientDialog" aria-label="Закрыть">×</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-error" id="clientError" role="alert"></div>
+        <div class="field">
+          <label for="clientName">Название / имя</label>
+          <input id="clientName" name="name" type="text" maxlength="160" placeholder="ООО «Вектор»" required>
+        </div>
+        <div class="field">
+          <label for="clientCompany">Компания</label>
+          <input id="clientCompany" name="company" type="text" maxlength="160" placeholder="Вектор">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label for="clientEmail">Email</label>
+            <input id="clientEmail" name="email" type="email" maxlength="160" placeholder="hello@vector.ru">
+          </div>
+          <div class="field">
+            <label for="clientPhone">Телефон</label>
+            <input id="clientPhone" name="phone" type="tel" maxlength="60" placeholder="+7 900 000-00-00">
+          </div>
+        </div>
+        <div class="field">
+          <label for="clientStatus">Статус</label>
+          <select id="clientStatus" name="status">
+            <option value="active">Активный</option>
+            <option value="vip">VIP</option>
+            <option value="inactive">Неактивный</option>
+          </select>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button class="button button-ghost" type="button" data-close-dialog="clientDialog">Отмена</button>
+        <button class="button button-primary" id="clientSubmit" type="submit">Добавить клиента</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const TOKEN_KEY = 'mini_crm_token';
+      const USER_KEY = 'mini_crm_user';
+      const STATUS_LABELS = {
+        new: 'Новая',
+        in_progress: 'В работе',
+        won: 'Выиграна',
+        lost: 'Проиграна',
+        active: 'Активный',
+        inactive: 'Неактивный',
+        vip: 'VIP'
+      };
+      const STATUS_ORDER = ['new', 'in_progress', 'won', 'lost'];
+      const FILTER_IDS = {
+        all: 'countAll',
+        new: 'countNew',
+        in_progress: 'countProgress',
+        won: 'countWon',
+        lost: 'countLost'
+      };
+
+      const state = {
+        token: localStorage.getItem(TOKEN_KEY) || '',
+        user: null,
+        deals: [],
+        clients: [],
+        dashboard: null,
+        filter: 'all',
+        view: 'deals',
+        loading: false
+      };
+
+      const el = {
+        authView: document.getElementById('authView'),
+        appView: document.getElementById('appView'),
+        userChip: document.getElementById('userChip'),
+        userName: document.getElementById('userName'),
+        userRole: document.getElementById('userRole'),
+        userAvatar: document.getElementById('userAvatar'),
+        topDate: document.getElementById('topDate'),
+        loginForm: document.getElementById('loginForm'),
+        loginButton: document.getElementById('loginButton'),
+        loginError: document.getElementById('loginError'),
+        logoutButton: document.getElementById('logoutButton'),
+        totalAmount: document.getElementById('totalAmount'),
+        totalDeals: document.getElementById('totalDeals'),
+        totalClients: document.getElementById('totalClients'),
+        statusBreakdown: document.getElementById('statusBreakdown'),
+        dashboardFoot: document.getElementById('dashboardFoot'),
+        welcomeLine: document.getElementById('welcomeLine'),
+        dealsBody: document.getElementById('dealsBody'),
+        clientsBody: document.getElementById('clientsBody'),
+        dealsEmpty: document.getElementById('dealsEmpty'),
+        clientsEmpty: document.getElementById('clientsEmpty'),
+        dealsCount: document.getElementById('dealsCount'),
+        clientsCount: document.getElementById('clientsCount'),
+        filters: document.getElementById('filters'),
+        newDealButton: document.getElementById('newDealButton'),
+        newClientButton: document.getElementById('newClientButton'),
+        dealDialog: document.getElementById('dealDialog'),
+        clientDialog: document.getElementById('clientDialog'),
+        dealForm: document.getElementById('dealForm'),
+        clientForm: document.getElementById('clientForm'),
+        dealClient: document.getElementById('dealClient'),
+        dealError: document.getElementById('dealError'),
+        clientError: document.getElementById('clientError'),
+        dealSubmit: document.getElementById('dealSubmit'),
+        clientSubmit: document.getElementById('clientSubmit'),
+        toast: document.getElementById('toast')
+      };
+
+      const money = new Intl.NumberFormat('ru-RU', {
+        style: 'currency',
+        currency: 'RUB',
+        maximumFractionDigits: 0
+      });
+
+      const integer = new Intl.NumberFormat('ru-RU');
+
+      function escapeHtml(value) {
+        return String(value ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
+
+      function formatMoney(value) {
+        return money.format(Number(value) || 0);
+      }
+
+      function formatDate(value) {
+        if (!value) return '—';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '—';
+        return date.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+      }
+
+      function plural(number, one, few, many) {
+        const mod10 = number % 10;
+        const mod100 = number % 100;
+        if (mod10 === 1 && mod100 !== 11) return one;
+        if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+        return many;
+      }
+
+      let toastTimer = null;
+      function showToast(message, isError = false) {
+        el.toast.textContent = message;
+        el.toast.classList.toggle('error', isError);
+        el.toast.classList.add('visible');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.toast.classList.remove('visible'), 3600);
+      }
+
+      function setFormError(node, message) {
+        node.textContent = message || '';
+        node.classList.toggle('visible', Boolean(message));
+      }
+
+      async function api(path, options = {}) {
+        const headers = { Accept: 'application/json', ...(options.headers || {}) };
+        if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+        if (state.token) headers.Authorization = `Bearer ${state.token}`;
+
+        let response;
+        try {
+          response = await fetch(path, {
+            method: options.method || 'GET',
+            headers,
+            body: options.body === undefined ? undefined : JSON.stringify(options.body)
+          });
+        } catch (error) {
+          throw new Error('Нет связи с сервером. Проверьте, что node server.js запущен.');
+        }
+
+        let payload = null;
+        try { payload = await response.json(); } catch (error) { payload = null; }
+
+        if (response.status === 401 && state.token) {
+          logout('Сессия истекла. Войдите снова.');
+          throw new Error('Требуется повторная авторизация');
+        }
+        if (!response.ok) {
+          throw new Error((payload && payload.error && payload.error.message) || `Ошибка запроса (${response.status})`);
+        }
+        return payload;
+      }
+
+      function logout(reason = '') {
+        state.token = '';
+        state.user = null;
+        state.deals = [];
+        state.clients = [];
+        state.dashboard = null;
+        state.filter = 'all';
+        state.view = 'deals';
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(USER_KEY);
+        el.appView.hidden = true;
+        el.authView.hidden = false;
+        el.userChip.hidden = true;
+        el.loginForm.reset();
+        setFormError(el.loginError, '');
+        setView('deals');
+        el.filters.querySelectorAll('.filter').forEach((button) => {
+          button.classList.toggle('active', button.dataset.status === 'all');
+        });
+        closeDialog(el.dealDialog);
+        closeDialog(el.clientDialog);
+        if (reason) showToast(reason, true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function enterApp(user) {
+        state.user = user;
+        localStorage.setItem(USER_KEY, JSON.stringify(user));
+        el.userName.textContent = user.username;
+        el.userRole.textContent = user.role === 'admin' ? 'Администратор' : 'Менеджер';
+        el.userAvatar.textContent = user.username.slice(0, 2);
+        el.userChip.hidden = false;
+        el.authView.hidden = true;
+        el.appView.hidden = false;
+        const hour = new Date().getHours();
+        const greeting = hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
+        el.welcomeLine.textContent = `${greeting}, ${user.username}. Сводка по клиентам и сделкам.`;
+      }
+
+      function setLoading(rows = 4) {
+        state.loading = true;
+        const skeleton = `
+          <tr>
+            <td><span class="skeleton"></span></td>
+            <td><span class="skeleton"></span></td>
+            <td><span class="skeleton short"></span></td>
+            <td><span class="skeleton short"></span></td>
+            <td><span class="skeleton"></span></td>
+            <td></td>
+          </tr>`;
+        el.dealsBody.innerHTML = skeleton.repeat(rows);
+        el.clientsBody.innerHTML = skeleton.repeat(rows);
+        el.dealsBody.closest('table').hidden = false;
+        el.clientsBody.closest('table').hidden = false;
+        el.dealsEmpty.hidden = true;
+        el.clientsEmpty.hidden = true;
+      }
+
+      function statusBadge(status) {
+        const safe = Object.prototype.hasOwnProperty.call(STATUS_LABELS, status) ? status : 'new';
+        return `<span class="badge status-${safe}">${escapeHtml(STATUS_LABELS[safe])}</span>`;
+      }
+
+      function renderDashboard() {
+        const dashboard = state.dashboard;
+        if (!dashboard) return;
+        const totals = dashboard.totals || { deals_count: 0, total_amount: 0 };
+        const clients = dashboard.clients || { clients_count: 0, vip_clients_count: 0 };
+        el.totalAmount.textContent = formatMoney(totals.total_amount);
+        el.totalDeals.textContent = integer.format(totals.deals_count || 0);
+        el.totalClients.textContent = integer.format(clients.clients_count || 0);
+
+        const groups = new Map((dashboard.by_status || []).map((row) => [row.status, row]));
+        const maxAmount = Math.max(Number(totals.total_amount) || 0, 1);
+        el.statusBreakdown.innerHTML = STATUS_ORDER.map((status) => {
+          const group = groups.get(status) || { deals_count: 0, total_amount: 0 };
+          const width = Math.max(0, Math.min(100, (Number(group.total_amount) / maxAmount) * 100));
+          return `
+            <div class="status-line">
+              <div class="status-meta">
+                <span>${escapeHtml(STATUS_LABELS[status])} · ${integer.format(group.deals_count)}</span>
+                <strong>${formatMoney(group.total_amount)}</strong>
+              </div>
+              <div class="meter"><i class="${status}" style="width:${width.toFixed(1)}%"></i></div>
+            </div>`;
+        }).join('');
+
+        const updated = dashboard.generated_at ? new Date(dashboard.generated_at) : new Date();
+        el.dashboardFoot.textContent = `Обновлено ${updated.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} · SQL aggregate`;
+      }
+
+      function renderFilterCounts() {
+        const counts = { all: state.deals.length, new: 0, in_progress: 0, won: 0, lost: 0 };
+        for (const deal of state.deals) {
+          if (Object.prototype.hasOwnProperty.call(counts, deal.status)) counts[deal.status] += 1;
+        }
+        Object.entries(FILTER_IDS).forEach(([status, id]) => {
+          const node = document.getElementById(id);
+          if (node) node.textContent = String(counts[status]);
+        });
+        el.dealsCount.textContent = String(state.deals.length);
+        el.clientsCount.textContent = String(state.clients.length);
+      }
+
+      function filteredDeals() {
+        return state.filter === 'all' ? state.deals : state.deals.filter((deal) => deal.status === state.filter);
+      }
+
+      function renderDeals() {
+        const deals = filteredDeals();
+        el.dealsBody.innerHTML = deals.map((deal) => `
+          <tr>
+            <td>
+              <div class="cell-main">
+                <strong>${escapeHtml(deal.client_name)}</strong>
+                <span>${escapeHtml(deal.client_company || 'Без компании')}</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell-main">
+                <strong>${escapeHtml(deal.title)}</strong>
+                <span>#${escapeHtml(deal.id)}${deal.description ? ' · ' + escapeHtml(deal.description) : ''}</span>
+              </div>
+            </td>
+            <td class="num"><strong>${formatMoney(deal.amount)}</strong></td>
+            <td>${statusBadge(deal.status)}</td>
+            <td class="date-cell">${formatDate(deal.created_at)}</td>
+            <td class="row-actions">
+              ${state.user && state.user.role === 'admin'
+                ? `<button class="row-action" type="button" data-delete-deal="${escapeHtml(deal.id)}" title="Удалить сделку" aria-label="Удалить сделку">×</button>`
+                : ''}
+            </td>
+          </tr>`).join('');
+
+        el.dealsEmpty.hidden = deals.length > 0;
+        el.dealsBody.closest('table').hidden = deals.length === 0;
+        if (deals.length === 0) {
+          el.dealsEmpty.querySelector('strong').textContent = state.filter === 'all' ? 'Сделок пока нет' : 'В этом статусе пусто';
+          el.dealsEmpty.querySelector('p').textContent = state.filter === 'all'
+            ? 'Нажмите «Новая сделка», чтобы добавить первую запись.'
+            : 'Выберите другой фильтр или создайте новую сделку.';
+        }
+      }
+
+      function renderClients() {
+        el.clientsBody.innerHTML = state.clients.map((client) => `
+          <tr>
+            <td>
+              <div class="cell-main">
+                <strong>${escapeHtml(client.name)}</strong>
+                <span>${escapeHtml(client.company || 'Без компании')}</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell-main">
+                <span>${escapeHtml(client.email || 'email не указан')}</span>
+                <span>${escapeHtml(client.phone || 'телефон не указан')}</span>
+              </div>
+            </td>
+            <td>${statusBadge(client.status)}</td>
+            <td class="num">${integer.format(client.deals_count || 0)}</td>
+            <td class="num"><strong>${formatMoney(client.deals_total || 0)}</strong></td>
+            <td class="row-actions">
+              ${state.user && state.user.role === 'admin'
+                ? `<button class="row-action" type="button" data-delete-client="${escapeHtml(client.id)}" title="Удалить клиента" aria-label="Удалить клиента">×</button>`
+                : ''}
+            </td>
+          </tr>`).join('');
+
+        el.clientsEmpty.hidden = state.clients.length > 0;
+        el.clientsBody.closest('table').hidden = state.clients.length === 0;
+        el.clientsCount.textContent = String(state.clients.length);
+      }
+
+      function renderClientOptions() {
+        const previous = el.dealClient.value;
+        el.dealClient.innerHTML = state.clients.map((client) => (
+          `<option value="${escapeHtml(client.id)}">${escapeHtml(client.name)}${client.company ? ' — ' + escapeHtml(client.company) : ''}</option>`
+        )).join('');
+        if (previous && state.clients.some((client) => String(client.id) === previous)) {
+          el.dealClient.value = previous;
+        }
+      }
+
+      function renderAll() {
+        renderDashboard();
+        renderFilterCounts();
+        renderDeals();
+        renderClients();
+        renderClientOptions();
+      }
+
+      async function loadData() {
+        setLoading();
+        try {
+          const [dashboard, deals, clients] = await Promise.all([
+            api('/api/dashboard'),
+            api('/api/deals'),
+            api('/api/clients')
+          ]);
+          state.dashboard = dashboard.data;
+          state.deals = deals.data || [];
+          state.clients = clients.data || [];
+          renderAll();
+        } catch (error) {
+          if (state.token) showToast(error.message, true);
+        } finally {
+          state.loading = false;
+        }
+      }
+
+      function setView(view) {
+        state.view = view;
+        document.querySelectorAll('.view-tab').forEach((button) => {
+          const isActive = button.dataset.view === view;
+          button.classList.toggle('active', isActive);
+          button.setAttribute('aria-selected', String(isActive));
+        });
+        document.getElementById('dealsView').hidden = view !== 'deals';
+        document.getElementById('clientsView').hidden = view !== 'clients';
+      }
+
+      function openDialog(dialog) {
+        if (typeof dialog.showModal === 'function') {
+          dialog.showModal();
+        } else {
+          dialog.setAttribute('open', '');
+        }
+      }
+
+      function closeDialog(dialog) {
+        if (typeof dialog.close === 'function') dialog.close();
+        else dialog.removeAttribute('open');
+      }
+
+      el.loginForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        setFormError(el.loginError, '');
+        const username = document.getElementById('username').value.trim();
+        const password = document.getElementById('password').value;
+        if (!username || !password) {
+          setFormError(el.loginError, 'Заполните логин и пароль.');
+          return;
+        }
+
+        el.loginButton.disabled = true;
+        el.loginButton.textContent = 'Проверяем…';
+        try {
+          const payload = await api('/api/auth/login', { method: 'POST', body: { username, password } });
+          state.token = payload.token;
+          localStorage.setItem(TOKEN_KEY, payload.token);
+          enterApp(payload.user);
+          await loadData();
+          showToast(`Добро пожаловать, ${payload.user.username}.`);
+        } catch (error) {
+          setFormError(el.loginError, error.message);
+        } finally {
+          el.loginButton.disabled = false;
+          el.loginButton.textContent = 'Войти в рабочий стол';
+        }
+      });
+
+      el.logoutButton.addEventListener('click', () => logout('Вы вышли из системы.'));
+
+      el.filters.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-status]');
+        if (!button) return;
+        state.filter = button.dataset.status;
+        el.filters.querySelectorAll('.filter').forEach((node) => node.classList.toggle('active', node === button));
+        renderDeals();
+      });
+
+      document.querySelectorAll('.view-tab').forEach((button) => {
+        button.addEventListener('click', () => setView(button.dataset.view));
+      });
+
+      el.newDealButton.addEventListener('click', () => {
+        if (state.clients.length === 0) {
+          showToast('Сначала добавьте клиента для сделки.', true);
+          openDialog(el.clientDialog);
+          return;
+        }
+        setFormError(el.dealError, '');
+        el.dealForm.reset();
+        renderClientOptions();
+        openDialog(el.dealDialog);
+      });
+
+      el.newClientButton.addEventListener('click', () => {
+        setFormError(el.clientError, '');
+        el.clientForm.reset();
+        openDialog(el.clientDialog);
+      });
+
+      document.querySelectorAll('[data-close-dialog]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const dialog = document.getElementById(button.dataset.closeDialog);
+          if (dialog) closeDialog(dialog);
+        });
+      });
+
+      el.dealForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        setFormError(el.dealError, '');
+        const body = {
+          client_id: Number(el.dealClient.value),
+          title: document.getElementById('dealTitle').value.trim(),
+          amount: Number(document.getElementById('dealAmount').value),
+          status: document.getElementById('dealStatus').value,
+          description: document.getElementById('dealDescription').value.trim()
+        };
+        if (!body.client_id || !body.title || !Number.isFinite(body.amount) || body.amount < 0) {
+          setFormError(el.dealError, 'Заполните клиента, название и корректную сумму.');
+          return;
+        }
+
+        el.dealSubmit.disabled = true;
+        el.dealSubmit.textContent = 'Сохраняем…';
+        try {
+          await api('/api/deals', { method: 'POST', body });
+          closeDialog(el.dealDialog);
+          el.dealForm.reset();
+          showToast('Сделка создана.');
+          await loadData();
+        } catch (error) {
+          setFormError(el.dealError, error.message);
+        } finally {
+          el.dealSubmit.disabled = false;
+          el.dealSubmit.textContent = 'Создать сделку';
+        }
+      });
+
+      el.clientForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        setFormError(el.clientError, '');
+        const body = {
+          name: document.getElementById('clientName').value.trim(),
+          company: document.getElementById('clientCompany').value.trim(),
+          email: document.getElementById('clientEmail').value.trim(),
+          phone: document.getElementById('clientPhone').value.trim(),
+          status: document.getElementById('clientStatus').value
+        };
+        if (!body.name) {
+          setFormError(el.clientError, 'Укажите название или имя клиента.');
+          return;
+        }
+
+        el.clientSubmit.disabled = true;
+        el.clientSubmit.textContent = 'Сохраняем…';
+        try {
+          await api('/api/clients', { method: 'POST', body });
+          closeDialog(el.clientDialog);
+          el.clientForm.reset();
+          showToast('Клиент добавлен.');
+          await loadData();
+        } catch (error) {
+          setFormError(el.clientError, error.message);
+        } finally {
+          el.clientSubmit.disabled = false;
+          el.clientSubmit.textContent = 'Добавить клиента';
+        }
+      });
+
+      document.addEventListener('click', async (event) => {
+        const dealButton = event.target.closest('[data-delete-deal]');
+        if (dealButton) {
+          if (!window.confirm('Удалить эту сделку? Действие необратимо.')) return;
+          try {
+            await api(`/api/deals/${dealButton.dataset.deleteDeal}`, { method: 'DELETE' });
+            showToast('Сделка удалена.');
+            await loadData();
+          } catch (error) {
+            showToast(error.message, true);
+          }
+          return;
+        }
+
+        const clientButton = event.target.closest('[data-delete-client]');
+        if (clientButton) {
+          if (!window.confirm('Удалить клиента вместе со всеми его сделками?')) return;
+          try {
+            await api(`/api/clients/${clientButton.dataset.deleteClient}`, { method: 'DELETE' });
+            showToast('Клиент удален.');
+            await loadData();
+          } catch (error) {
+            showToast(error.message, true);
+          }
+        }
+      });
+
+      el.topDate.textContent = new Date().toLocaleDateString('ru-RU', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long'
+      });
+
+      async function restoreSession() {
+        if (!state.token) return;
+        try {
+          const payload = await api('/api/auth/me');
+          enterApp(payload.user);
+          await loadData();
+        } catch (error) {
+          if (state.token) logout();
+        }
+      }
+
+      restoreSession();
+    })();
+  </script>
+</body>
+</html>
