@@ -271,7 +271,7 @@ app.get('/api/auth/me', authenticate, asyncHandler(async (req, res) => {
   res.json({ user: result.rows[0] });
 }));
 
-app.post('/api/auth/register', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+async function createUserHandler(req, res) {
   const parsed = validateRegistration(req.body || {});
   if (parsed.error) {
     return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error } });
@@ -288,11 +288,99 @@ app.post('/api/auth/register', authenticate, requireRole('admin'), asyncHandler(
 
   audit('user.created', { actor: req.user.username, user: username, role });
   res.status(201).json({ user: result.rows[0] });
-}));
+}
+
+app.post('/api/auth/register', authenticate, requireRole('admin'), asyncHandler(createUserHandler));
+app.post('/api/users', authenticate, requireRole('admin'), asyncHandler(createUserHandler));
 
 app.get('/api/users', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
   const result = await pool.query('SELECT id, username, role, created_at FROM users ORDER BY id');
   res.json({ data: result.rows });
+}));
+
+app.put('/api/users/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Некорректный id' } });
+  }
+
+  const existingResult = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+  const existing = existingResult.rows[0];
+  if (!existing) {
+    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Пользователь не найден' } });
+  }
+
+  const username = cleanString(req.body && req.body.username, 60);
+  const role = cleanString(req.body && req.body.role, 20) || existing.role;
+  const password = typeof (req.body && req.body.password) === 'string' ? req.body.password : '';
+
+  if (!username || username.length < 3 || !USER_ROLES.includes(role)) {
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: 'username >= 3, role = admin|manager' },
+    });
+  }
+  if (password && password.length < 6) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'password >= 6' } });
+  }
+  if (id === req.user.id && role !== existing.role) {
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: 'Нельзя изменить собственную роль' },
+    });
+  }
+  if (existing.role === 'admin' && role !== 'admin') {
+    const admins = await pool.query("SELECT COUNT(*)::int AS count FROM users WHERE role = 'admin'");
+    if (admins.rows[0].count <= 1) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'В системе должен остаться хотя бы один администратор' },
+      });
+    }
+  }
+
+  const passwordHash = password ? await bcrypt.hash(password, 10) : existing.password_hash;
+  const result = await pool.query(
+    `UPDATE users
+     SET username = $1, role = $2, password_hash = $3
+     WHERE id = $4
+     RETURNING id, username, role, created_at`,
+    [username, role, passwordHash, id]
+  );
+
+  audit('user.updated', {
+    actor: req.user.username,
+    user_id: id,
+    username,
+    role,
+    password_changed: Boolean(password),
+  });
+  res.json({ data: result.rows[0] });
+}));
+
+app.delete('/api/users/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  if (!id) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Некорректный id' } });
+  }
+  if (id === req.user.id) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Нельзя удалить собственную учётную запись' } });
+  }
+
+  const existingResult = await pool.query('SELECT id, username, role FROM users WHERE id = $1', [id]);
+  const existing = existingResult.rows[0];
+  if (!existing) {
+    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Пользователь не найден' } });
+  }
+  if (existing.role === 'admin') {
+    const admins = await pool.query("SELECT COUNT(*)::int AS count FROM users WHERE role = 'admin'");
+    if (admins.rows[0].count <= 1) {
+      return res.status(400).json({
+        error: { code: 'VALIDATION_ERROR', message: 'Нельзя удалить последнего администратора' },
+      });
+    }
+  }
+
+  await pool.query('DELETE FROM users WHERE id = $1', [id]);
+  audit('user.deleted', { level: 'WARN', actor: req.user.username, user_id: id, username: existing.username });
+  res.json({ data: { id } });
 }));
 
 app.get('/api/clients', authenticate, asyncHandler(async (req, res) => {

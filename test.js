@@ -268,6 +268,76 @@ async function testCrudAndNotes(baseUrl, adminToken, managerToken) {
   }
 }
 
+async function testUserManagement(baseUrl, adminToken, managerToken) {
+  const username = `qa_${Date.now()}`;
+  const password = 'qa-pass-123';
+  let userId = null;
+
+  try {
+    const managerList = await request(baseUrl, '/api/users', { token: managerToken });
+    assert.equal(managerList.status, 403, 'менеджер не должен видеть список пользователей');
+
+    const created = await request(baseUrl, '/api/users', {
+      method: 'POST',
+      token: adminToken,
+      body: { username, password, role: 'manager' }
+    });
+    assert.equal(created.status, 201, 'администратор должен создавать пользователя');
+    userId = created.body.user.id;
+
+    const duplicate = await request(baseUrl, '/api/users', {
+      method: 'POST',
+      token: adminToken,
+      body: { username, password, role: 'manager' }
+    });
+    assert.equal(duplicate.status, 409, 'дубликат username должен возвращать 409');
+
+    const updated = await request(baseUrl, `/api/users/${userId}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: { username, password: 'qa-pass-456', role: 'manager' }
+    });
+    assert.equal(updated.status, 200, 'пользователь должен обновляться');
+    assert.equal(updated.body.data.role, 'manager');
+
+    const newLogin = await login(baseUrl, { username, password: 'qa-pass-456' });
+    assert.equal(newLogin.user.username, username);
+
+    const managerUpdate = await request(baseUrl, `/api/users/${userId}`, {
+      method: 'PUT',
+      token: managerToken,
+      body: { username, role: 'admin' }
+    });
+    assert.equal(managerUpdate.status, 403, 'менеджер не должен менять пользователей');
+
+    const managerDelete = await request(baseUrl, `/api/users/${userId}`, {
+      method: 'DELETE',
+      token: managerToken
+    });
+    assert.equal(managerDelete.status, 403, 'менеджер не должен удалять пользователей');
+
+    const me = await request(baseUrl, '/api/auth/me', { token: adminToken });
+    const selfDelete = await request(baseUrl, `/api/users/${me.body.user.id}`, {
+      method: 'DELETE',
+      token: adminToken
+    });
+    assert.equal(selfDelete.status, 400, 'нельзя удалить собственную учётную запись');
+
+    const deleted = await request(baseUrl, `/api/users/${userId}`, {
+      method: 'DELETE',
+      token: adminToken
+    });
+    assert.equal(deleted.status, 200, 'администратор должен удалять пользователя');
+    userId = null;
+
+    console.log('  ✓ CRUD пользователей, смена пароля и запрет самовольного удаления');
+  } finally {
+    if (userId) {
+      await request(baseUrl, `/api/users/${userId}`, { method: 'DELETE', token: adminToken }).catch(() => {});
+    }
+  }
+}
+
 async function testDashboard(baseUrl, token) {
   const unauthorized = await request(baseUrl, '/api/dashboard');
   assert.equal(unauthorized.status, 401, 'дашборд без токена должен вернуть 401');
@@ -336,10 +406,13 @@ async function main() {
     console.log('\nТест 2 — CRUD, статусы, поиск и заметки');
     await testCrudAndNotes(baseUrl, tokens.adminToken, tokens.managerToken);
 
-    console.log('\nТест 3 — агрегатные данные дашборда');
+    console.log('\nТест 3 — управление пользователями');
+    await testUserManagement(baseUrl, tokens.adminToken, tokens.managerToken);
+
+    console.log('\nТест 4 — агрегатные данные дашборда');
     await testDashboard(baseUrl, tokens.adminToken);
 
-    console.log('\nИтог: 3/3 теста пройдены.');
+    console.log('\nИтог: 4/4 теста пройдены.');
   } finally {
     if (!child.killed) child.kill('SIGTERM');
     await delay(350);
