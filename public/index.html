@@ -506,6 +506,9 @@
     .status-active { background: var(--accent-soft); color: var(--accent-dark); }
     .status-inactive { background: #ecece7; color: #747a75; }
     .status-vip { background: #f3ead6; color: #8d631f; }
+    .role-admin { background: var(--ink); color: #fff; }
+    .role-manager { background: var(--blue-soft); color: var(--blue); }
+    .field select:disabled { background: #f2f1ea; color: var(--muted); cursor: not-allowed; }
     .row-action {
       display: inline-grid;
       place-items: center;
@@ -709,6 +712,7 @@
           <p id="welcomeLine">Сводка по клиентам и сделкам</p>
         </div>
         <div class="head-actions">
+          <button class="button button-ghost" id="newUserButton" type="button" hidden>+ Пользователь</button>
           <button class="button button-ghost" id="newClientButton" type="button">+ Клиент</button>
           <button class="button button-dark" id="newDealButton" type="button">+ Новая сделка</button>
         </div>
@@ -757,11 +761,14 @@
               <button class="view-tab" type="button" data-view="clients" role="tab" aria-selected="false">
                 Клиенты <small id="clientsCount">0</small>
               </button>
+              <button class="view-tab" id="teamTab" type="button" data-view="team" role="tab" aria-selected="false" hidden>
+                Команда <small id="teamCount">0</small>
+              </button>
             </div>
             <div class="panel-note">Обновление без перезагрузки страницы</div>
           </div>
 
-          <div class="panel-tools">
+          <div class="panel-tools" id="panelTools">
             <label class="search-box" for="searchInput">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                 <circle cx="11" cy="11" r="7"></circle>
@@ -821,6 +828,27 @@
                 <div class="empty-mark">◇</div>
                 <strong>Клиентов пока нет</strong>
                 <p>Добавьте первого клиента, затем создайте для него сделку.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="teamView" hidden>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Пользователь</th>
+                    <th>Роль</th>
+                    <th>Создан</th>
+                    <th class="row-actions">Действия</th>
+                  </tr>
+                </thead>
+                <tbody id="teamBody"></tbody>
+              </table>
+              <div class="empty-state" id="teamEmpty" hidden>
+                <div class="empty-mark">◇</div>
+                <strong>Пользователей пока нет</strong>
+                <p>Добавьте первого сотрудника.</p>
               </div>
             </div>
           </div>
@@ -920,6 +948,42 @@
     </form>
   </dialog>
 
+  <dialog id="userDialog">
+    <form id="userForm">
+      <div class="dialog-head">
+        <div>
+          <h2 id="userDialogTitle">Новый пользователь</h2>
+          <p id="userDialogHint">Создайте учётную запись сотрудника.</p>
+        </div>
+        <button class="dialog-close" type="button" data-close-dialog="userDialog" aria-label="Закрыть">×</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-error" id="userError" role="alert"></div>
+        <div class="field">
+          <label for="userUsername">Логин</label>
+          <input id="userUsername" name="username" type="text" maxlength="60" placeholder="manager2" required>
+        </div>
+        <div class="field">
+          <label for="userPassword">Пароль</label>
+          <input id="userPassword" name="password" type="password" minlength="6" maxlength="120" autocomplete="new-password" placeholder="Не менее 6 символов">
+          <span class="field-hint" id="userPasswordHint">Для нового пользователя пароль обязателен.</span>
+        </div>
+        <div class="field">
+          <label for="userRole">Роль</label>
+          <select id="userRole" name="role">
+            <option value="manager">Менеджер — просмотр и создание</option>
+            <option value="admin">Администратор — полный доступ</option>
+          </select>
+          <span class="field-hint" id="userRoleHint">Собственную роль изменить нельзя.</span>
+        </div>
+      </div>
+      <div class="dialog-actions">
+        <button class="button button-ghost" type="button" data-close-dialog="userDialog">Отмена</button>
+        <button class="button button-primary" id="userSubmit" type="submit">Создать пользователя</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="notesDialog">
     <div class="dialog-head">
       <div>
@@ -961,6 +1025,10 @@
         inactive: 'Неактивный',
         vip: 'VIP'
       };
+      const ROLE_LABELS = {
+        admin: 'Администратор',
+        manager: 'Менеджер'
+      };
       const STATUS_ORDER = ['new', 'in_progress', 'won', 'lost'];
       const FILTER_IDS = {
         all: 'countAll',
@@ -975,12 +1043,14 @@
         user: null,
         deals: [],
         clients: [],
+        users: [],
         dashboard: null,
         filter: 'all',
         view: 'deals',
         search: '',
         editingDealId: null,
         editingClientId: null,
+        editingUserId: null,
         notesClient: null,
         notes: [],
         editingNoteId: null,
@@ -1011,13 +1081,20 @@
         clientsEmpty: document.getElementById('clientsEmpty'),
         dealsCount: document.getElementById('dealsCount'),
         clientsCount: document.getElementById('clientsCount'),
+        teamTab: document.getElementById('teamTab'),
+        teamCount: document.getElementById('teamCount'),
+        teamBody: document.getElementById('teamBody'),
+        teamEmpty: document.getElementById('teamEmpty'),
+        panelTools: document.getElementById('panelTools'),
         filters: document.getElementById('filters'),
         searchInput: document.getElementById('searchInput'),
         searchStatus: document.getElementById('searchStatus'),
         newDealButton: document.getElementById('newDealButton'),
         newClientButton: document.getElementById('newClientButton'),
+        newUserButton: document.getElementById('newUserButton'),
         dealDialog: document.getElementById('dealDialog'),
         clientDialog: document.getElementById('clientDialog'),
+        userDialog: document.getElementById('userDialog'),
         notesDialog: document.getElementById('notesDialog'),
         dealForm: document.getElementById('dealForm'),
         clientForm: document.getElementById('clientForm'),
@@ -1026,6 +1103,16 @@
         clientError: document.getElementById('clientError'),
         dealSubmit: document.getElementById('dealSubmit'),
         clientSubmit: document.getElementById('clientSubmit'),
+        userForm: document.getElementById('userForm'),
+        userError: document.getElementById('userError'),
+        userSubmit: document.getElementById('userSubmit'),
+        userUsername: document.getElementById('userUsername'),
+        userPassword: document.getElementById('userPassword'),
+        userRole: document.getElementById('userRole'),
+        userRoleHint: document.getElementById('userRoleHint'),
+        userPasswordHint: document.getElementById('userPasswordHint'),
+        userDialogTitle: document.getElementById('userDialogTitle'),
+        userDialogHint: document.getElementById('userDialogHint'),
         dealDialogTitle: document.getElementById('dealDialogTitle'),
         dealDialogHint: document.getElementById('dealDialogHint'),
         clientDialogTitle: document.getElementById('clientDialogTitle'),
@@ -1126,12 +1213,14 @@
         state.user = null;
         state.deals = [];
         state.clients = [];
+        state.users = [];
         state.dashboard = null;
         state.filter = 'all';
         state.view = 'deals';
         state.search = '';
         state.editingDealId = null;
         state.editingClientId = null;
+        state.editingUserId = null;
         state.notesClient = null;
         state.notes = [];
         state.editingNoteId = null;
@@ -1150,6 +1239,7 @@
         });
         closeDialog(el.dealDialog);
         closeDialog(el.clientDialog);
+        closeDialog(el.userDialog);
         closeDialog(el.notesDialog);
         if (reason) showToast(reason, true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1159,11 +1249,15 @@
         state.user = user;
         localStorage.setItem(USER_KEY, JSON.stringify(user));
         el.userName.textContent = user.username;
-        el.userRole.textContent = user.role === 'admin' ? 'Администратор' : 'Менеджер';
+        el.userRole.textContent = ROLE_LABELS[user.role] || user.role;
         el.userAvatar.textContent = user.username.slice(0, 2);
         el.userChip.hidden = false;
         el.authView.hidden = true;
         el.appView.hidden = false;
+        const isAdmin = user.role === 'admin';
+        el.teamTab.hidden = !isAdmin;
+        el.newUserButton.hidden = !isAdmin;
+        if (!isAdmin && state.view === 'team') setView('deals');
         const hour = new Date().getHours();
         const greeting = hour < 12 ? 'Доброе утро' : hour < 18 ? 'Добрый день' : 'Добрый вечер';
         el.welcomeLine.textContent = `${greeting}, ${user.username}. Сводка по клиентам и сделкам.`;
@@ -1232,6 +1326,7 @@
         });
         el.dealsCount.textContent = String(state.deals.length);
         el.clientsCount.textContent = String(state.clients.length);
+        el.teamCount.textContent = String(state.users.length);
         if (state.search) {
           el.searchStatus.textContent = `Найдено: ${state.deals.length} ${plural(state.deals.length, 'сделка', 'сделки', 'сделок')} · ${state.clients.length} ${plural(state.clients.length, 'клиент', 'клиента', 'клиентов')}`;
         } else {
@@ -1328,6 +1423,44 @@
         }
       }
 
+      function roleBadge(role) {
+        const safe = Object.prototype.hasOwnProperty.call(ROLE_LABELS, role) ? role : 'manager';
+        return `<span class="badge role-${safe}">${escapeHtml(ROLE_LABELS[safe])}</span>`;
+      }
+
+      function renderTeam() {
+        if (!state.users.length) {
+          el.teamBody.innerHTML = '';
+          el.teamEmpty.hidden = false;
+          el.teamBody.closest('table').hidden = true;
+          return;
+        }
+
+        const currentId = state.user ? Number(state.user.id) : null;
+        el.teamBody.innerHTML = state.users.map((user) => `
+          <tr>
+            <td>
+              <div class="cell-main">
+                <strong>${escapeHtml(user.username)}</strong>
+                <span>#${escapeHtml(user.id)}</span>
+              </div>
+            </td>
+            <td>${roleBadge(user.role)}</td>
+            <td class="date-cell">${formatDate(user.created_at)}</td>
+            <td class="row-actions">
+              <div class="row-actions-group">
+                <button class="row-action edit" type="button" data-edit-user="${escapeHtml(user.id)}" title="Редактировать пользователя" aria-label="Редактировать пользователя">✎</button>
+                ${Number(user.id) !== currentId
+                  ? `<button class="row-action danger" type="button" data-delete-user="${escapeHtml(user.id)}" title="Удалить пользователя" aria-label="Удалить пользователя">×</button>`
+                  : ''}
+              </div>
+            </td>
+          </tr>`).join('');
+
+        el.teamEmpty.hidden = true;
+        el.teamBody.closest('table').hidden = false;
+      }
+
       function renderClientOptions(extraClient = null) {
         const previous = el.dealClient.value;
         const extraId = extraClient ? (extraClient.client_id ?? extraClient.id) : null;
@@ -1352,6 +1485,7 @@
         renderFilterCounts();
         renderDeals();
         renderClients();
+        renderTeam();
         renderClientOptions();
       }
 
@@ -1359,14 +1493,19 @@
         setLoading();
         try {
           const suffix = state.search ? `?search=${encodeURIComponent(state.search)}` : '';
-          const [dashboard, deals, clients] = await Promise.all([
+          const requests = [
             api('/api/dashboard'),
             api(`/api/deals${suffix}`),
             api(`/api/clients${suffix}`)
-          ]);
+          ];
+          if (state.user && state.user.role === 'admin') {
+            requests.push(api('/api/users'));
+          }
+          const [dashboard, deals, clients, users] = await Promise.all(requests);
           state.dashboard = dashboard.data;
           state.deals = deals.data || [];
           state.clients = clients.data || [];
+          state.users = users ? (users.data || []) : [];
           renderAll();
         } catch (error) {
           if (state.token) showToast(error.message, true);
@@ -1384,6 +1523,8 @@
         });
         document.getElementById('dealsView').hidden = view !== 'deals';
         document.getElementById('clientsView').hidden = view !== 'clients';
+        document.getElementById('teamView').hidden = view !== 'team';
+        el.panelTools.hidden = view === 'team';
       }
 
       function openDialog(dialog) {
@@ -1466,6 +1607,42 @@
           : 'Заполните карточку компании или частного лица.';
         setClientSubmitLabel();
         openDialog(el.clientDialog);
+      }
+
+      function setUserSubmitLabel() {
+        el.userSubmit.textContent = state.editingUserId ? 'Сохранить изменения' : 'Создать пользователя';
+      }
+
+      function openUserDialog(user = null) {
+        state.editingUserId = user ? Number(user.id) : null;
+        el.userForm.reset();
+        setFormError(el.userError, '');
+        el.userRole.disabled = false;
+        el.userPassword.required = !user;
+
+        if (user) {
+          el.userUsername.value = user.username;
+          el.userRole.value = user.role;
+          el.userPassword.value = '';
+          el.userPassword.placeholder = 'Оставьте пустым, чтобы не менять';
+          el.userPasswordHint.textContent = 'Пустое поле оставит текущий пароль без изменений.';
+          const isSelf = Number(user.id) === Number(state.user.id);
+          el.userRole.disabled = isSelf;
+          el.userRoleHint.textContent = isSelf
+            ? 'Собственную роль изменить нельзя.'
+            : 'Роль определяет доступ к изменению и удалению записей.';
+        } else {
+          el.userPassword.placeholder = 'Не менее 6 символов';
+          el.userPasswordHint.textContent = 'Для нового пользователя пароль обязателен.';
+          el.userRoleHint.textContent = 'Менеджер может просматривать и создавать записи.';
+        }
+
+        el.userDialogTitle.textContent = user ? 'Редактирование пользователя' : 'Новый пользователь';
+        el.userDialogHint.textContent = user
+          ? 'Измените логин, пароль или роль сотрудника.'
+          : 'Создайте учётную запись сотрудника.';
+        setUserSubmitLabel();
+        openDialog(el.userDialog);
       }
 
       function resetNoteForm() {
@@ -1586,6 +1763,7 @@
 
       el.newDealButton.addEventListener('click', () => openDealDialog());
       el.newClientButton.addEventListener('click', () => openClientDialog());
+      el.newUserButton.addEventListener('click', () => openUserDialog());
 
       let searchTimer = null;
       el.searchInput.addEventListener('input', () => {
@@ -1694,6 +1872,49 @@
         }
       });
 
+      el.userForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        setFormError(el.userError, '');
+        const editingId = state.editingUserId;
+        const body = {
+          username: el.userUsername.value.trim(),
+          password: el.userPassword.value,
+          role: el.userRole.value
+        };
+
+        if (body.username.length < 3) {
+          setFormError(el.userError, 'Логин должен содержать не менее 3 символов.');
+          return;
+        }
+        if ((!editingId && !body.password) || (body.password && body.password.length < 6)) {
+          setFormError(el.userError, 'Пароль должен содержать не менее 6 символов.');
+          return;
+        }
+        if (!Object.prototype.hasOwnProperty.call(ROLE_LABELS, body.role)) {
+          setFormError(el.userError, 'Выберите корректную роль.');
+          return;
+        }
+
+        el.userSubmit.disabled = true;
+        el.userSubmit.textContent = 'Сохраняем…';
+        try {
+          await api(editingId ? `/api/users/${editingId}` : '/api/users', {
+            method: editingId ? 'PUT' : 'POST',
+            body
+          });
+          state.editingUserId = null;
+          closeDialog(el.userDialog);
+          el.userForm.reset();
+          showToast(editingId ? 'Пользователь обновлён.' : 'Пользователь создан.');
+          await loadData();
+        } catch (error) {
+          setFormError(el.userError, error.message);
+        } finally {
+          el.userSubmit.disabled = false;
+          setUserSubmitLabel();
+        }
+      });
+
       el.noteForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         setFormError(el.notesError, '');
@@ -1724,6 +1945,26 @@
       });
 
       document.addEventListener('click', async (event) => {
+        const editUserButton = event.target.closest('[data-edit-user]');
+        if (editUserButton) {
+          const user = state.users.find((item) => String(item.id) === editUserButton.dataset.editUser);
+          if (user) openUserDialog(user);
+          return;
+        }
+
+        const deleteUserButton = event.target.closest('[data-delete-user]');
+        if (deleteUserButton) {
+          if (!window.confirm('Удалить учётную запись пользователя? Его записи останутся без автора.')) return;
+          try {
+            await api(`/api/users/${deleteUserButton.dataset.deleteUser}`, { method: 'DELETE' });
+            showToast('Пользователь удалён.');
+            await loadData();
+          } catch (error) {
+            showToast(error.message, true);
+          }
+          return;
+        }
+
         const editDealButton = event.target.closest('[data-edit-deal]');
         if (editDealButton) {
           const deal = state.deals.find((item) => String(item.id) === editDealButton.dataset.editDeal);
