@@ -969,8 +969,8 @@
           <span class="field-hint" id="userPasswordHint">Для нового пользователя пароль обязателен.</span>
         </div>
         <div class="field">
-          <label for="userRole">Роль</label>
-          <select id="userRole" name="role">
+          <label for="userRoleInput">Роль</label>
+          <select id="userRoleInput" name="role">
             <option value="manager">Менеджер — просмотр и создание</option>
             <option value="admin">Администратор — полный доступ</option>
           </select>
@@ -1108,7 +1108,7 @@
         userSubmit: document.getElementById('userSubmit'),
         userUsername: document.getElementById('userUsername'),
         userPassword: document.getElementById('userPassword'),
-        userRole: document.getElementById('userRole'),
+        userRoleInput: document.getElementById('userRoleInput'),
         userRoleHint: document.getElementById('userRoleHint'),
         userPasswordHint: document.getElementById('userPasswordHint'),
         userDialogTitle: document.getElementById('userDialogTitle'),
@@ -1617,17 +1617,17 @@
         state.editingUserId = user ? Number(user.id) : null;
         el.userForm.reset();
         setFormError(el.userError, '');
-        el.userRole.disabled = false;
+        el.userRoleInput.disabled = false;
         el.userPassword.required = !user;
 
         if (user) {
           el.userUsername.value = user.username;
-          el.userRole.value = user.role;
+          el.userRoleInput.value = user.role;
           el.userPassword.value = '';
           el.userPassword.placeholder = 'Оставьте пустым, чтобы не менять';
           el.userPasswordHint.textContent = 'Пустое поле оставит текущий пароль без изменений.';
           const isSelf = Number(user.id) === Number(state.user.id);
-          el.userRole.disabled = isSelf;
+          el.userRoleInput.disabled = isSelf;
           el.userRoleHint.textContent = isSelf
             ? 'Собственную роль изменить нельзя.'
             : 'Роль определяет доступ к изменению и удалению записей.';
@@ -1879,7 +1879,7 @@
         const body = {
           username: el.userUsername.value.trim(),
           password: el.userPassword.value,
-          role: el.userRole.value
+          role: el.userRoleInput.value
         };
 
         if (body.username.length < 3) {
@@ -1898,10 +1898,16 @@
         el.userSubmit.disabled = true;
         el.userSubmit.textContent = 'Сохраняем…';
         try {
-          await api(editingId ? `/api/users/${editingId}` : '/api/users', {
+          const result = await api(editingId ? `/api/users/${editingId}` : '/api/users', {
             method: editingId ? 'PUT' : 'POST',
             body
           });
+          if (editingId && Number(editingId) === Number(state.user.id)) {
+            state.user.username = result.data.username;
+            localStorage.setItem(USER_KEY, JSON.stringify(state.user));
+            el.userName.textContent = state.user.username;
+            el.userAvatar.textContent = state.user.username.slice(0, 2);
+          }
           state.editingUserId = null;
           closeDialog(el.userDialog);
           el.userForm.reset();
