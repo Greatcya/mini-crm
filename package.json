@@ -6,7 +6,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test.js"
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "node unit.test.js",
+    "test:integration": "node test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

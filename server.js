@@ -5,6 +5,18 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool, types } = require('pg');
+const {
+  USER_ROLES,
+  DEAL_STATUSES,
+  CLIENT_STATUSES,
+  cleanString,
+  parseId,
+  validateLogin,
+  validateRegistration,
+  validateClientPayload,
+  validateDealPayload,
+  validateNotePayload,
+} = require('./lib/validation');
 
 // NUMERIC -> number, чтобы суммы в JSON были числами, а не строками.
 types.setTypeParser(1700, (value) => (value === null ? null : Number(value)));
@@ -91,8 +103,11 @@ const TABLES_SQL = `
     client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     body TEXT NOT NULL,
     created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  ALTER TABLE notes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
   CREATE INDEX IF NOT EXISTS idx_clients_status ON clients(status);
   CREATE INDEX IF NOT EXISTS idx_deals_status ON deals(status);
@@ -184,7 +199,7 @@ function authenticate(req, res, next) {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    if (!payload || !['admin', 'manager'].includes(payload.role)) {
+    if (!payload || !USER_ROLES.includes(payload.role)) {
       throw new Error('invalid role');
     }
     req.user = {
@@ -222,39 +237,17 @@ function asyncHandler(fn) {
   return (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 }
 
-function cleanString(value, maxLength) {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  return trimmed.slice(0, maxLength);
-}
-
-function parseId(value) {
-  const id = Number(value);
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-function parseMoney(value) {
-  if (value === '' || value === null || value === undefined || typeof value === 'boolean') return null;
-  const amount = Number(value);
-  return Number.isFinite(amount) && amount >= 0 ? Math.round(amount * 100) / 100 : null;
-}
-
-const DEAL_STATUSES = ['new', 'in_progress', 'won', 'lost'];
-const CLIENT_STATUSES = ['active', 'inactive', 'vip'];
-
 app.get('/api/health', asyncHandler(async (req, res) => {
   await pool.query('SELECT 1');
   res.json({ status: 'ok', database: 'up', timestamp: new Date().toISOString() });
 }));
 
 app.post('/api/auth/login', asyncHandler(async (req, res) => {
-  const username = cleanString(req.body && req.body.username, 60);
-  const password = typeof (req.body && req.body.password) === 'string' ? req.body.password : '';
-
-  if (!username || !password) {
-    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Укажите username и password' } });
+  const parsed = validateLogin(req.body || {});
+  if (parsed.error) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error } });
   }
+  const { username, password } = parsed.value;
 
   const result = await pool.query('SELECT * FROM users WHERE username = $1', [username]);
   const user = result.rows[0];
@@ -279,15 +272,11 @@ app.get('/api/auth/me', authenticate, asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/auth/register', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
-  const username = cleanString(req.body && req.body.username, 60);
-  const password = typeof (req.body && req.body.password) === 'string' ? req.body.password : '';
-  const role = cleanString(req.body && req.body.role, 20) || 'manager';
-
-  if (!username || username.length < 3 || password.length < 6 || !['admin', 'manager'].includes(role)) {
-    return res.status(400).json({
-      error: { code: 'VALIDATION_ERROR', message: 'username >= 3, password >= 6, role = admin|manager' },
-    });
+  const parsed = validateRegistration(req.body || {});
+  if (parsed.error) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error } });
   }
+  const { username, password, role } = parsed.value;
 
   const passwordHash = await bcrypt.hash(password, 10);
   const result = await pool.query(
@@ -365,17 +354,11 @@ app.get('/api/clients/:id', authenticate, asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/clients', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
-  const name = cleanString(req.body && req.body.name, 160);
-  const company = cleanString(req.body && req.body.company, 160);
-  const email = cleanString(req.body && req.body.email, 160);
-  const phone = cleanString(req.body && req.body.phone, 60);
-  const status = cleanString(req.body && req.body.status, 20) || 'active';
-
-  if (!name || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || !CLIENT_STATUSES.includes(status)) {
-    return res.status(400).json({
-      error: { code: 'VALIDATION_ERROR', message: 'Проверьте name, email и status' },
-    });
+  const parsed = validateClientPayload(req.body || {});
+  if (parsed.error) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error } });
   }
+  const { name, company, email, phone, status } = parsed.value;
 
   const result = await pool.query(
     `INSERT INTO clients (name, company, email, phone, status, created_by)
@@ -394,17 +377,11 @@ app.put('/api/clients/:id', authenticate, requireRole('admin'), asyncHandler(asy
     return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Некорректный id' } });
   }
 
-  const name = cleanString(req.body && req.body.name, 160);
-  const company = cleanString(req.body && req.body.company, 160);
-  const email = cleanString(req.body && req.body.email, 160);
-  const phone = cleanString(req.body && req.body.phone, 60);
-  const status = cleanString(req.body && req.body.status, 20) || 'active';
-
-  if (!name || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) || !CLIENT_STATUSES.includes(status)) {
-    return res.status(400).json({
-      error: { code: 'VALIDATION_ERROR', message: 'Проверьте name, email и status' },
-    });
+  const parsed = validateClientPayload(req.body || {});
+  if (parsed.error) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error } });
   }
+  const { name, company, email, phone, status } = parsed.value;
 
   const result = await pool.query(
     `UPDATE clients
@@ -498,17 +475,11 @@ app.get('/api/deals/:id', authenticate, asyncHandler(async (req, res) => {
 }));
 
 app.post('/api/deals', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
-  const clientId = parseId(req.body && req.body.client_id);
-  const title = cleanString(req.body && req.body.title, 200);
-  const amount = parseMoney(req.body && req.body.amount);
-  const status = cleanString(req.body && req.body.status, 20) || 'new';
-  const description = cleanString(req.body && req.body.description, 4000);
-
-  if (!clientId || !title || amount === null || !DEAL_STATUSES.includes(status)) {
-    return res.status(400).json({
-      error: { code: 'VALIDATION_ERROR', message: 'Проверьте client_id, title, amount и status' },
-    });
+  const parsed = validateDealPayload(req.body || {});
+  if (parsed.error) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error } });
   }
+  const { clientId, title, amount, status, description } = parsed.value;
 
   const clientExists = await pool.query('SELECT 1 FROM clients WHERE id = $1', [clientId]);
   if (!clientExists.rows[0]) {
@@ -538,17 +509,11 @@ app.put('/api/deals/:id', authenticate, requireRole('admin'), asyncHandler(async
     return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Некорректный id' } });
   }
 
-  const clientId = parseId(req.body && req.body.client_id);
-  const title = cleanString(req.body && req.body.title, 200);
-  const amount = parseMoney(req.body && req.body.amount);
-  const status = cleanString(req.body && req.body.status, 20) || 'new';
-  const description = cleanString(req.body && req.body.description, 4000);
-
-  if (!clientId || !title || amount === null || !DEAL_STATUSES.includes(status)) {
-    return res.status(400).json({
-      error: { code: 'VALIDATION_ERROR', message: 'Проверьте client_id, title, amount и status' },
-    });
+  const parsed = validateDealPayload(req.body || {});
+  if (parsed.error) {
+    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: parsed.error } });
   }
+  const { clientId, title, amount, status, description } = parsed.value;
 
   const clientExists = await pool.query('SELECT 1 FROM clients WHERE id = $1', [clientId]);
   if (!clientExists.rows[0]) {
@@ -603,10 +568,13 @@ app.get('/api/clients/:id/notes', authenticate, asyncHandler(async (req, res) =>
 
 app.post('/api/clients/:id/notes', authenticate, requireRole('admin', 'manager'), asyncHandler(async (req, res) => {
   const clientId = parseId(req.params.id);
-  const body = cleanString(req.body && req.body.body, 4000);
-  if (!clientId || !body) {
-    return res.status(400).json({ error: { code: 'VALIDATION_ERROR', message: 'Укажите текст заметки' } });
+  const parsed = validateNotePayload(req.body || {});
+  if (!clientId || parsed.error) {
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: parsed.error || 'Некорректный id клиента' },
+    });
   }
+  const { body } = parsed.value;
 
   const clientExists = await pool.query('SELECT 1 FROM clients WHERE id = $1', [clientId]);
   if (!clientExists.rows[0]) {
@@ -621,6 +589,30 @@ app.post('/api/clients/:id/notes', authenticate, requireRole('admin', 'manager')
 
   audit('note.created', { actor: req.user.username, client_id: clientId, note_id: result.rows[0].id });
   res.status(201).json({ data: result.rows[0] });
+}));
+
+app.put('/api/notes/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
+  const id = parseId(req.params.id);
+  const parsed = validateNotePayload(req.body || {});
+  if (!id || parsed.error) {
+    return res.status(400).json({
+      error: { code: 'VALIDATION_ERROR', message: parsed.error || 'Некорректный id' },
+    });
+  }
+
+  const result = await pool.query(
+    `UPDATE notes
+     SET body = $1, updated_at = NOW()
+     WHERE id = $2
+     RETURNING *`,
+    [parsed.value.body, id]
+  );
+  if (!result.rows[0]) {
+    return res.status(404).json({ error: { code: 'NOT_FOUND', message: 'Заметка не найдена' } });
+  }
+
+  audit('note.updated', { actor: req.user.username, note_id: id, client_id: result.rows[0].client_id });
+  res.json({ data: result.rows[0] });
 }));
 
 app.delete('/api/notes/:id', authenticate, requireRole('admin'), asyncHandler(async (req, res) => {
