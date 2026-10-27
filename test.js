@@ -105,7 +105,167 @@ async function testAuthentication(baseUrl) {
   assert.equal(managerDelete.status, 403, 'менеджер не должен удалять сделки');
 
   console.log('  ✓ JWT-авторизация, /api/auth/me и роли admin/manager');
-  return adminSession.token;
+  return { adminToken: adminSession.token, managerToken: managerSession.token };
+}
+
+async function testCrudAndNotes(baseUrl, adminToken, managerToken) {
+  const suffix = Date.now();
+  const clientName = `API Test ${suffix}`;
+  const dealTitle = `Deal ${suffix}`;
+  let clientId = null;
+  let dealId = null;
+  let noteId = null;
+  let managerNoteId = null;
+
+  try {
+    const badClient = await request(baseUrl, '/api/clients', {
+      method: 'POST',
+      token: adminToken,
+      body: { name: 'Bad email', email: 'bad@' }
+    });
+    assert.equal(badClient.status, 400, 'некорректный email должен отклоняться');
+
+    const createdClient = await request(baseUrl, '/api/clients', {
+      method: 'POST',
+      token: adminToken,
+      body: {
+        name: clientName,
+        company: 'Integration Lab',
+        email: `qa-${suffix}@example.com`,
+        phone: '+7 900 000-00-00',
+        status: 'active'
+      }
+    });
+    assert.equal(createdClient.status, 201, 'клиент должен создаваться');
+    clientId = createdClient.body.data.id;
+
+    const updatedClient = await request(baseUrl, `/api/clients/${clientId}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: {
+        name: clientName,
+        company: 'Integration Lab',
+        email: `qa-${suffix}@example.com`,
+        phone: '+7 900 000-00-01',
+        status: 'vip'
+      }
+    });
+    assert.equal(updatedClient.status, 200, 'клиент должен обновляться');
+    assert.equal(updatedClient.body.data.status, 'vip');
+
+    const clientSearch = await request(baseUrl, `/api/clients?search=${encodeURIComponent(clientName)}`, {
+      token: adminToken
+    });
+    assert.equal(clientSearch.status, 200);
+    assert.ok(clientSearch.body.data.some((client) => client.id === clientId), 'поиск должен находить клиента');
+
+    const badDeal = await request(baseUrl, '/api/deals', {
+      method: 'POST',
+      token: adminToken,
+      body: { client_id: clientId, title: 'Bad deal', amount: -10, status: 'new' }
+    });
+    assert.equal(badDeal.status, 400, 'отрицательная сумма должна отклоняться');
+
+    const createdDeal = await request(baseUrl, '/api/deals', {
+      method: 'POST',
+      token: adminToken,
+      body: {
+        client_id: clientId,
+        title: dealTitle,
+        amount: 12345.67,
+        status: 'new',
+        description: 'Проверка CRUD'
+      }
+    });
+    assert.equal(createdDeal.status, 201, 'сделка должна создаваться');
+    dealId = createdDeal.body.data.id;
+
+    const movedDeal = await request(baseUrl, `/api/deals/${dealId}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: {
+        client_id: clientId,
+        title: dealTitle,
+        amount: 12345.67,
+        status: 'won',
+        description: 'Статус изменён'
+      }
+    });
+    assert.equal(movedDeal.status, 200, 'сделка должна обновляться');
+    assert.equal(movedDeal.body.data.status, 'won', 'статус сделки должен меняться');
+
+    const dealSearch = await request(baseUrl, `/api/deals?search=${encodeURIComponent(dealTitle)}`, {
+      token: managerToken
+    });
+    assert.equal(dealSearch.status, 200);
+    assert.ok(dealSearch.body.data.some((deal) => deal.id === dealId), 'поиск должен находить сделку');
+
+    const managerUpdate = await request(baseUrl, `/api/deals/${dealId}`, {
+      method: 'PUT',
+      token: managerToken,
+      body: {
+        client_id: clientId,
+        title: dealTitle,
+        amount: 12345.67,
+        status: 'lost',
+        description: 'Менеджер не должен менять'
+      }
+    });
+    assert.equal(managerUpdate.status, 403, 'менеджер не должен редактировать сделки');
+
+    const createdNote = await request(baseUrl, `/api/clients/${clientId}/notes`, {
+      method: 'POST',
+      token: adminToken,
+      body: { body: 'Первичная заметка' }
+    });
+    assert.equal(createdNote.status, 201, 'заметка должна создаваться');
+    noteId = createdNote.body.data.id;
+
+    const updatedNote = await request(baseUrl, `/api/notes/${noteId}`, {
+      method: 'PUT',
+      token: adminToken,
+      body: { body: 'Обновлённая заметка' }
+    });
+    assert.equal(updatedNote.status, 200, 'заметка должна обновляться');
+    assert.equal(updatedNote.body.data.body, 'Обновлённая заметка');
+
+    const managerNote = await request(baseUrl, `/api/clients/${clientId}/notes`, {
+      method: 'POST',
+      token: managerToken,
+      body: { body: 'Комментарий менеджера' }
+    });
+    assert.equal(managerNote.status, 201, 'менеджер должен добавлять заметки');
+    managerNoteId = managerNote.body.data.id;
+
+    const managerDeleteNote = await request(baseUrl, `/api/notes/${managerNoteId}`, {
+      method: 'DELETE',
+      token: managerToken
+    });
+    assert.equal(managerDeleteNote.status, 403, 'менеджер не должен удалять заметки');
+
+    const notes = await request(baseUrl, `/api/clients/${clientId}/notes`, { token: adminToken });
+    assert.equal(notes.status, 200);
+    assert.equal(notes.body.data.length, 2, 'обе заметки должны быть в списке');
+
+    const deletedNote = await request(baseUrl, `/api/notes/${managerNoteId}`, {
+      method: 'DELETE',
+      token: adminToken
+    });
+    assert.equal(deletedNote.status, 200);
+    managerNoteId = null;
+
+    console.log('  ✓ CRUD клиента/сделки, смена статуса, поиск и заметки; права менеджера ограничены');
+  } finally {
+    if (managerNoteId) {
+      await request(baseUrl, `/api/notes/${managerNoteId}`, { method: 'DELETE', token: adminToken }).catch(() => {});
+    }
+    if (dealId) {
+      await request(baseUrl, `/api/deals/${dealId}`, { method: 'DELETE', token: adminToken }).catch(() => {});
+    }
+    if (clientId) {
+      await request(baseUrl, `/api/clients/${clientId}`, { method: 'DELETE', token: adminToken }).catch(() => {});
+    }
+  }
 }
 
 async function testDashboard(baseUrl, token) {
@@ -171,12 +331,15 @@ async function main() {
     if (startupError) throw startupError;
 
     console.log('\nТест 1 — авторизация и разграничение прав');
-    const token = await testAuthentication(baseUrl);
+    const tokens = await testAuthentication(baseUrl);
 
-    console.log('\nТест 2 — агрегатные данные дашборда');
-    await testDashboard(baseUrl, token);
+    console.log('\nТест 2 — CRUD, статусы, поиск и заметки');
+    await testCrudAndNotes(baseUrl, tokens.adminToken, tokens.managerToken);
 
-    console.log('\nИтог: 2/2 теста пройдены.');
+    console.log('\nТест 3 — агрегатные данные дашборда');
+    await testDashboard(baseUrl, tokens.adminToken);
+
+    console.log('\nИтог: 3/3 теста пройдены.');
   } finally {
     if (!child.killed) child.kill('SIGTERM');
     await delay(350);

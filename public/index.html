@@ -428,6 +428,40 @@
     .filter.active { border-color: var(--line); background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(27, 43, 34, 0.06); }
     .filter b { font-size: 10px; font-weight: 600; opacity: 0.55; }
 
+    .panel-tools {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 11px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+    .search-box {
+      display: flex;
+      flex: 1;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: #fff;
+      color: #9aa19b;
+      transition: 0.18s ease;
+    }
+    .search-box:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(19, 111, 82, 0.09); }
+    .search-box svg { flex: none; width: 14px; height: 14px; }
+    .search-box input {
+      width: 100%;
+      min-height: 34px;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: var(--ink);
+      font-size: 12px;
+    }
+    .search-box input::placeholder { color: #9aa19b; }
+    .search-status { color: var(--muted); font-size: 10px; white-space: nowrap; }
+
     .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; }
     thead th {
@@ -483,8 +517,11 @@
       color: #a0a6a1;
       font-size: 14px;
     }
-    .row-action:hover { border-color: #ecd3cf; background: var(--red-soft); color: var(--red); }
+    .row-action:hover { border-color: var(--line); background: #f4f3ed; color: var(--ink); }
+    .row-action.danger:hover { border-color: #ecd3cf; background: var(--red-soft); color: var(--red); }
+    .row-action.edit:hover { border-color: #cfe1d7; background: var(--accent-soft); color: var(--accent-dark); }
     .row-actions { text-align: right; }
+    .row-actions-group { display: flex; justify-content: flex-end; gap: 2px; }
 
     .empty-state { padding: 58px 24px; text-align: center; }
     .empty-mark {
@@ -554,6 +591,22 @@
     .toast.visible { transform: translateY(0); opacity: 1; }
     .toast.error { background: #7e2e27; }
 
+    .notes-list { display: grid; gap: 9px; max-height: 280px; margin-bottom: 18px; overflow-y: auto; }
+    .note-card {
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: #fff;
+    }
+    .note-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+    .note-meta { color: var(--muted); font-size: 10px; line-height: 1.4; }
+    .note-body { margin: 0; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+    .note-card-actions { display: flex; gap: 2px; flex: none; }
+    .note-empty { padding: 18px 12px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 11px; text-align: center; }
+    #noteForm { padding-top: 16px; border-top: 1px solid var(--line); }
+    #noteForm .field { margin-bottom: 10px; }
+    #noteForm .dialog-actions { padding: 7px 0 0; }
+
     @media (max-width: 980px) {
       .auth-view { grid-template-columns: 1fr; max-width: 680px; padding-top: 42px; }
       .auth-copy h1 { font-size: clamp(40px, 9vw, 62px); }
@@ -574,6 +627,8 @@
       .dashboard { display: block; }
       .panel-head { flex-wrap: wrap; }
       .panel-note { display: none; }
+      .panel-tools { flex-wrap: wrap; padding: 10px 14px; }
+      .search-status { width: 100%; white-space: normal; }
       .filters { padding: 11px 14px; }
       thead th:first-child, tbody td:first-child { padding-left: 14px; }
       thead th:last-child, tbody td:last-child { padding-right: 14px; }
@@ -706,6 +761,17 @@
             <div class="panel-note">Обновление без перезагрузки страницы</div>
           </div>
 
+          <div class="panel-tools">
+            <label class="search-box" for="searchInput">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="m20 20-3.5-3.5"></path>
+              </svg>
+              <input id="searchInput" type="search" placeholder="Поиск по клиентам и сделкам" autocomplete="off">
+            </label>
+            <span class="search-status" id="searchStatus" aria-live="polite"></span>
+          </div>
+
           <div id="dealsView">
             <div class="filters" id="filters" role="group" aria-label="Фильтр сделок по статусу">
               <button class="filter active" type="button" data-status="all">Все <b id="countAll">0</b></button>
@@ -723,7 +789,7 @@
                     <th>Сумма</th>
                     <th>Статус</th>
                     <th>Дата</th>
-                    <th class="row-actions">Действие</th>
+                    <th class="row-actions">Действия</th>
                   </tr>
                 </thead>
                 <tbody id="dealsBody"></tbody>
@@ -746,7 +812,7 @@
                     <th>Статус</th>
                     <th>Сделок</th>
                     <th>Сумма</th>
-                    <th class="row-actions">Действие</th>
+                    <th class="row-actions">Действия</th>
                   </tr>
                 </thead>
                 <tbody id="clientsBody"></tbody>
@@ -767,8 +833,8 @@
     <form id="dealForm">
       <div class="dialog-head">
         <div>
-          <h2>Новая сделка</h2>
-          <p>Сделка будет привязана к выбранному клиенту.</p>
+          <h2 id="dealDialogTitle">Новая сделка</h2>
+          <p id="dealDialogHint">Сделка будет привязана к выбранному клиенту.</p>
         </div>
         <button class="dialog-close" type="button" data-close-dialog="dealDialog" aria-label="Закрыть">×</button>
       </div>
@@ -813,8 +879,8 @@
     <form id="clientForm">
       <div class="dialog-head">
         <div>
-          <h2>Новый клиент</h2>
-          <p>Заполните карточку компании или частного лица.</p>
+          <h2 id="clientDialogTitle">Новый клиент</h2>
+          <p id="clientDialogHint">Заполните карточку компании или частного лица.</p>
         </div>
         <button class="dialog-close" type="button" data-close-dialog="clientDialog" aria-label="Закрыть">×</button>
       </div>
@@ -854,6 +920,30 @@
     </form>
   </dialog>
 
+  <dialog id="notesDialog">
+    <div class="dialog-head">
+      <div>
+        <h2 id="notesTitle">Заметки</h2>
+        <p id="notesSubtitle">История взаимодействия с клиентом.</p>
+      </div>
+      <button class="dialog-close" type="button" data-close-dialog="notesDialog" aria-label="Закрыть">×</button>
+    </div>
+    <div class="dialog-body">
+      <div class="form-error" id="notesError" role="alert"></div>
+      <div class="notes-list" id="notesList"></div>
+      <form id="noteForm">
+        <div class="field">
+          <label for="noteBody" id="noteFormLabel">Новая заметка</label>
+          <textarea id="noteBody" name="body" maxlength="4000" placeholder="Итоги звонка, договорённости, следующий шаг…" required></textarea>
+        </div>
+        <div class="dialog-actions">
+          <button class="button button-ghost" id="noteCancel" type="button" hidden>Отмена</button>
+          <button class="button button-primary" id="noteSubmit" type="submit">Добавить заметку</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script>
@@ -888,6 +978,12 @@
         dashboard: null,
         filter: 'all',
         view: 'deals',
+        search: '',
+        editingDealId: null,
+        editingClientId: null,
+        notesClient: null,
+        notes: [],
+        editingNoteId: null,
         loading: false
       };
 
@@ -916,10 +1012,13 @@
         dealsCount: document.getElementById('dealsCount'),
         clientsCount: document.getElementById('clientsCount'),
         filters: document.getElementById('filters'),
+        searchInput: document.getElementById('searchInput'),
+        searchStatus: document.getElementById('searchStatus'),
         newDealButton: document.getElementById('newDealButton'),
         newClientButton: document.getElementById('newClientButton'),
         dealDialog: document.getElementById('dealDialog'),
         clientDialog: document.getElementById('clientDialog'),
+        notesDialog: document.getElementById('notesDialog'),
         dealForm: document.getElementById('dealForm'),
         clientForm: document.getElementById('clientForm'),
         dealClient: document.getElementById('dealClient'),
@@ -927,6 +1026,19 @@
         clientError: document.getElementById('clientError'),
         dealSubmit: document.getElementById('dealSubmit'),
         clientSubmit: document.getElementById('clientSubmit'),
+        dealDialogTitle: document.getElementById('dealDialogTitle'),
+        dealDialogHint: document.getElementById('dealDialogHint'),
+        clientDialogTitle: document.getElementById('clientDialogTitle'),
+        clientDialogHint: document.getElementById('clientDialogHint'),
+        notesTitle: document.getElementById('notesTitle'),
+        notesSubtitle: document.getElementById('notesSubtitle'),
+        notesList: document.getElementById('notesList'),
+        notesError: document.getElementById('notesError'),
+        noteForm: document.getElementById('noteForm'),
+        noteBody: document.getElementById('noteBody'),
+        noteSubmit: document.getElementById('noteSubmit'),
+        noteCancel: document.getElementById('noteCancel'),
+        noteFormLabel: document.getElementById('noteFormLabel'),
         toast: document.getElementById('toast')
       };
 
@@ -1017,12 +1129,20 @@
         state.dashboard = null;
         state.filter = 'all';
         state.view = 'deals';
+        state.search = '';
+        state.editingDealId = null;
+        state.editingClientId = null;
+        state.notesClient = null;
+        state.notes = [];
+        state.editingNoteId = null;
         localStorage.removeItem(TOKEN_KEY);
         localStorage.removeItem(USER_KEY);
         el.appView.hidden = true;
         el.authView.hidden = false;
         el.userChip.hidden = true;
         el.loginForm.reset();
+        el.searchInput.value = '';
+        el.searchStatus.textContent = '';
         setFormError(el.loginError, '');
         setView('deals');
         el.filters.querySelectorAll('.filter').forEach((button) => {
@@ -1030,6 +1150,7 @@
         });
         closeDialog(el.dealDialog);
         closeDialog(el.clientDialog);
+        closeDialog(el.notesDialog);
         if (reason) showToast(reason, true);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -1111,6 +1232,11 @@
         });
         el.dealsCount.textContent = String(state.deals.length);
         el.clientsCount.textContent = String(state.clients.length);
+        if (state.search) {
+          el.searchStatus.textContent = `Найдено: ${state.deals.length} ${plural(state.deals.length, 'сделка', 'сделки', 'сделок')} · ${state.clients.length} ${plural(state.clients.length, 'клиент', 'клиента', 'клиентов')}`;
+        } else {
+          el.searchStatus.textContent = '';
+        }
       }
 
       function filteredDeals() {
@@ -1138,7 +1264,10 @@
             <td class="date-cell">${formatDate(deal.created_at)}</td>
             <td class="row-actions">
               ${state.user && state.user.role === 'admin'
-                ? `<button class="row-action" type="button" data-delete-deal="${escapeHtml(deal.id)}" title="Удалить сделку" aria-label="Удалить сделку">×</button>`
+                ? `<div class="row-actions-group">
+                     <button class="row-action edit" type="button" data-edit-deal="${escapeHtml(deal.id)}" title="Редактировать сделку" aria-label="Редактировать сделку">✎</button>
+                     <button class="row-action danger" type="button" data-delete-deal="${escapeHtml(deal.id)}" title="Удалить сделку" aria-label="Удалить сделку">×</button>
+                   </div>`
                 : ''}
             </td>
           </tr>`).join('');
@@ -1146,10 +1275,15 @@
         el.dealsEmpty.hidden = deals.length > 0;
         el.dealsBody.closest('table').hidden = deals.length === 0;
         if (deals.length === 0) {
-          el.dealsEmpty.querySelector('strong').textContent = state.filter === 'all' ? 'Сделок пока нет' : 'В этом статусе пусто';
-          el.dealsEmpty.querySelector('p').textContent = state.filter === 'all'
-            ? 'Нажмите «Новая сделка», чтобы добавить первую запись.'
-            : 'Выберите другой фильтр или создайте новую сделку.';
+          if (state.search) {
+            el.dealsEmpty.querySelector('strong').textContent = 'Ничего не найдено';
+            el.dealsEmpty.querySelector('p').textContent = 'Измените поисковый запрос или сбросьте фильтр.';
+          } else {
+            el.dealsEmpty.querySelector('strong').textContent = state.filter === 'all' ? 'Сделок пока нет' : 'В этом статусе пусто';
+            el.dealsEmpty.querySelector('p').textContent = state.filter === 'all'
+              ? 'Нажмите «Новая сделка», чтобы добавить первую запись.'
+              : 'Выберите другой фильтр или создайте новую сделку.';
+          }
         }
       }
 
@@ -1172,23 +1306,43 @@
             <td class="num">${integer.format(client.deals_count || 0)}</td>
             <td class="num"><strong>${formatMoney(client.deals_total || 0)}</strong></td>
             <td class="row-actions">
-              ${state.user && state.user.role === 'admin'
-                ? `<button class="row-action" type="button" data-delete-client="${escapeHtml(client.id)}" title="Удалить клиента" aria-label="Удалить клиента">×</button>`
-                : ''}
+              <div class="row-actions-group">
+                <button class="row-action note" type="button" data-notes-client="${escapeHtml(client.id)}" title="Заметки клиента" aria-label="Заметки клиента">≡</button>
+                ${state.user && state.user.role === 'admin'
+                  ? `<button class="row-action edit" type="button" data-edit-client="${escapeHtml(client.id)}" title="Редактировать клиента" aria-label="Редактировать клиента">✎</button>
+                     <button class="row-action danger" type="button" data-delete-client="${escapeHtml(client.id)}" title="Удалить клиента" aria-label="Удалить клиента">×</button>`
+                  : ''}
+              </div>
             </td>
           </tr>`).join('');
 
         el.clientsEmpty.hidden = state.clients.length > 0;
         el.clientsBody.closest('table').hidden = state.clients.length === 0;
         el.clientsCount.textContent = String(state.clients.length);
+        if (state.clients.length === 0 && state.search) {
+          el.clientsEmpty.querySelector('strong').textContent = 'Ничего не найдено';
+          el.clientsEmpty.querySelector('p').textContent = 'Измените поисковый запрос.';
+        } else if (state.clients.length === 0) {
+          el.clientsEmpty.querySelector('strong').textContent = 'Клиентов пока нет';
+          el.clientsEmpty.querySelector('p').textContent = 'Добавьте первого клиента, затем создайте для него сделку.';
+        }
       }
 
-      function renderClientOptions() {
+      function renderClientOptions(extraClient = null) {
         const previous = el.dealClient.value;
-        el.dealClient.innerHTML = state.clients.map((client) => (
+        const extraId = extraClient ? (extraClient.client_id ?? extraClient.id) : null;
+        const clients = [...state.clients];
+        if (extraClient && !clients.some((client) => String(client.id) === String(extraId))) {
+          clients.unshift({
+            id: extraId,
+            name: extraClient.client_name || extraClient.name,
+            company: extraClient.client_company || extraClient.company
+          });
+        }
+        el.dealClient.innerHTML = clients.map((client) => (
           `<option value="${escapeHtml(client.id)}">${escapeHtml(client.name)}${client.company ? ' — ' + escapeHtml(client.company) : ''}</option>`
         )).join('');
-        if (previous && state.clients.some((client) => String(client.id) === previous)) {
+        if (previous && clients.some((client) => String(client.id) === previous)) {
           el.dealClient.value = previous;
         }
       }
@@ -1204,10 +1358,11 @@
       async function loadData() {
         setLoading();
         try {
+          const suffix = state.search ? `?search=${encodeURIComponent(state.search)}` : '';
           const [dashboard, deals, clients] = await Promise.all([
             api('/api/dashboard'),
-            api('/api/deals'),
-            api('/api/clients')
+            api(`/api/deals${suffix}`),
+            api(`/api/clients${suffix}`)
           ]);
           state.dashboard = dashboard.data;
           state.deals = deals.data || [];
@@ -1242,6 +1397,150 @@
       function closeDialog(dialog) {
         if (typeof dialog.close === 'function') dialog.close();
         else dialog.removeAttribute('open');
+      }
+
+      function formatDateTime(value) {
+        if (!value) return '—';
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return '—';
+        return date.toLocaleString('ru-RU', {
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+
+      function setDealSubmitLabel() {
+        el.dealSubmit.textContent = state.editingDealId ? 'Сохранить изменения' : 'Создать сделку';
+      }
+
+      function setClientSubmitLabel() {
+        el.clientSubmit.textContent = state.editingClientId ? 'Сохранить изменения' : 'Добавить клиента';
+      }
+
+      function openDealDialog(deal = null) {
+        if (!deal && state.clients.length === 0) {
+          showToast('Сначала добавьте клиента для сделки.', true);
+          openClientDialog();
+          return;
+        }
+
+        state.editingDealId = deal ? Number(deal.id) : null;
+        el.dealForm.reset();
+        setFormError(el.dealError, '');
+        renderClientOptions(deal);
+
+        if (deal) {
+          el.dealClient.value = String(deal.client_id);
+          document.getElementById('dealTitle').value = deal.title;
+          document.getElementById('dealAmount').value = deal.amount;
+          document.getElementById('dealStatus').value = deal.status;
+          document.getElementById('dealDescription').value = deal.description || '';
+        }
+
+        el.dealDialogTitle.textContent = deal ? 'Редактирование сделки' : 'Новая сделка';
+        el.dealDialogHint.textContent = deal
+          ? 'Измените данные сделки и сохраните результат.'
+          : 'Сделка будет привязана к выбранному клиенту.';
+        setDealSubmitLabel();
+        openDialog(el.dealDialog);
+      }
+
+      function openClientDialog(client = null) {
+        state.editingClientId = client ? Number(client.id) : null;
+        el.clientForm.reset();
+        setFormError(el.clientError, '');
+
+        if (client) {
+          document.getElementById('clientName').value = client.name;
+          document.getElementById('clientCompany').value = client.company || '';
+          document.getElementById('clientEmail').value = client.email || '';
+          document.getElementById('clientPhone').value = client.phone || '';
+          document.getElementById('clientStatus').value = client.status;
+        }
+
+        el.clientDialogTitle.textContent = client ? 'Редактирование клиента' : 'Новый клиент';
+        el.clientDialogHint.textContent = client
+          ? 'Обновите карточку клиента.'
+          : 'Заполните карточку компании или частного лица.';
+        setClientSubmitLabel();
+        openDialog(el.clientDialog);
+      }
+
+      function resetNoteForm() {
+        state.editingNoteId = null;
+        el.noteForm.reset();
+        el.noteCancel.hidden = true;
+        el.noteSubmit.textContent = 'Добавить заметку';
+        el.noteFormLabel.textContent = 'Новая заметка';
+        setFormError(el.notesError, '');
+      }
+
+      function renderNotes() {
+        if (!state.notes.length) {
+          el.notesList.innerHTML = '<div class="note-empty">Заметок пока нет. Добавьте первую запись.</div>';
+          return;
+        }
+
+        el.notesList.innerHTML = state.notes.map((note) => `
+          <article class="note-card">
+            <div class="note-card-head">
+              <div class="note-meta">
+                <strong>${escapeHtml(note.created_by_username || 'Система')}</strong><br>
+                ${escapeHtml(formatDateTime(note.created_at))}
+                ${note.updated_at && note.updated_at !== note.created_at
+                  ? ` · изменено ${escapeHtml(formatDateTime(note.updated_at))}`
+                  : ''}
+              </div>
+              ${state.user && state.user.role === 'admin'
+                ? `<div class="note-card-actions">
+                     <button class="row-action edit" type="button" data-edit-note="${escapeHtml(note.id)}" title="Редактировать заметку" aria-label="Редактировать заметку">✎</button>
+                     <button class="row-action danger" type="button" data-delete-note="${escapeHtml(note.id)}" title="Удалить заметку" aria-label="Удалить заметку">×</button>
+                   </div>`
+                : ''}
+            </div>
+            <p class="note-body">${escapeHtml(note.body)}</p>
+          </article>`).join('');
+      }
+
+      async function loadNotes(clientId) {
+        setFormError(el.notesError, '');
+        el.notesList.innerHTML = '<div class="note-empty">Загрузка заметок…</div>';
+        try {
+          const payload = await api(`/api/clients/${clientId}/notes`);
+          state.notes = payload.data || [];
+          renderNotes();
+        } catch (error) {
+          state.notes = [];
+          el.notesList.innerHTML = '';
+          setFormError(el.notesError, error.message);
+        }
+      }
+
+      function openNotes(client) {
+        state.notesClient = client;
+        state.notes = [];
+        state.editingNoteId = null;
+        resetNoteForm();
+        el.notesTitle.textContent = `Заметки: ${client.name}`;
+        el.notesSubtitle.textContent = client.company
+          ? `${client.company} · история взаимодействия`
+          : 'История взаимодействия с клиентом';
+        openDialog(el.notesDialog);
+        loadNotes(client.id);
+      }
+
+      function editNote(noteId) {
+        const note = state.notes.find((item) => Number(item.id) === Number(noteId));
+        if (!note) return;
+        state.editingNoteId = Number(note.id);
+        el.noteBody.value = note.body;
+        el.noteCancel.hidden = false;
+        el.noteSubmit.textContent = 'Сохранить изменения';
+        el.noteFormLabel.textContent = 'Редактирование заметки';
+        setFormError(el.notesError, '');
+        el.noteBody.focus();
       }
 
       el.loginForm.addEventListener('submit', async (event) => {
@@ -1285,22 +1584,30 @@
         button.addEventListener('click', () => setView(button.dataset.view));
       });
 
-      el.newDealButton.addEventListener('click', () => {
-        if (state.clients.length === 0) {
-          showToast('Сначала добавьте клиента для сделки.', true);
-          openDialog(el.clientDialog);
-          return;
-        }
-        setFormError(el.dealError, '');
-        el.dealForm.reset();
-        renderClientOptions();
-        openDialog(el.dealDialog);
+      el.newDealButton.addEventListener('click', () => openDealDialog());
+      el.newClientButton.addEventListener('click', () => openClientDialog());
+
+      let searchTimer = null;
+      el.searchInput.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          const value = el.searchInput.value.trim();
+          if (value === state.search) return;
+          state.search = value;
+          state.filter = 'all';
+          el.filters.querySelectorAll('.filter').forEach((button) => {
+            button.classList.toggle('active', button.dataset.status === 'all');
+          });
+          loadData();
+        }, 300);
       });
 
-      el.newClientButton.addEventListener('click', () => {
-        setFormError(el.clientError, '');
-        el.clientForm.reset();
-        openDialog(el.clientDialog);
+      el.noteCancel.addEventListener('click', resetNoteForm);
+
+      el.notesDialog.addEventListener('close', () => {
+        state.notesClient = null;
+        state.notes = [];
+        resetNoteForm();
       });
 
       document.querySelectorAll('[data-close-dialog]').forEach((button) => {
@@ -1313,14 +1620,16 @@
       el.dealForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         setFormError(el.dealError, '');
+        const editingId = state.editingDealId;
+        const amountRaw = document.getElementById('dealAmount').value.trim();
         const body = {
           client_id: Number(el.dealClient.value),
           title: document.getElementById('dealTitle').value.trim(),
-          amount: Number(document.getElementById('dealAmount').value),
+          amount: Number(amountRaw),
           status: document.getElementById('dealStatus').value,
           description: document.getElementById('dealDescription').value.trim()
         };
-        if (!body.client_id || !body.title || !Number.isFinite(body.amount) || body.amount < 0) {
+        if (!body.client_id || !body.title || amountRaw === '' || !Number.isFinite(body.amount) || body.amount < 0) {
           setFormError(el.dealError, 'Заполните клиента, название и корректную сумму.');
           return;
         }
@@ -1328,22 +1637,27 @@
         el.dealSubmit.disabled = true;
         el.dealSubmit.textContent = 'Сохраняем…';
         try {
-          await api('/api/deals', { method: 'POST', body });
+          await api(editingId ? `/api/deals/${editingId}` : '/api/deals', {
+            method: editingId ? 'PUT' : 'POST',
+            body
+          });
+          state.editingDealId = null;
           closeDialog(el.dealDialog);
           el.dealForm.reset();
-          showToast('Сделка создана.');
+          showToast(editingId ? 'Сделка обновлена.' : 'Сделка создана.');
           await loadData();
         } catch (error) {
           setFormError(el.dealError, error.message);
         } finally {
           el.dealSubmit.disabled = false;
-          el.dealSubmit.textContent = 'Создать сделку';
+          setDealSubmitLabel();
         }
       });
 
       el.clientForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         setFormError(el.clientError, '');
+        const editingId = state.editingClientId;
         const body = {
           name: document.getElementById('clientName').value.trim(),
           company: document.getElementById('clientCompany').value.trim(),
@@ -1355,24 +1669,102 @@
           setFormError(el.clientError, 'Укажите название или имя клиента.');
           return;
         }
+        if (body.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email)) {
+          setFormError(el.clientError, 'Укажите корректный email.');
+          return;
+        }
 
         el.clientSubmit.disabled = true;
         el.clientSubmit.textContent = 'Сохраняем…';
         try {
-          await api('/api/clients', { method: 'POST', body });
+          await api(editingId ? `/api/clients/${editingId}` : '/api/clients', {
+            method: editingId ? 'PUT' : 'POST',
+            body
+          });
+          state.editingClientId = null;
           closeDialog(el.clientDialog);
           el.clientForm.reset();
-          showToast('Клиент добавлен.');
+          showToast(editingId ? 'Клиент обновлён.' : 'Клиент добавлен.');
           await loadData();
         } catch (error) {
           setFormError(el.clientError, error.message);
         } finally {
           el.clientSubmit.disabled = false;
-          el.clientSubmit.textContent = 'Добавить клиента';
+          setClientSubmitLabel();
+        }
+      });
+
+      el.noteForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        setFormError(el.notesError, '');
+        if (!state.notesClient) return;
+        const body = el.noteBody.value.trim();
+        if (!body) {
+          setFormError(el.notesError, 'Введите текст заметки.');
+          return;
+        }
+
+        const editingId = state.editingNoteId;
+        el.noteSubmit.disabled = true;
+        el.noteSubmit.textContent = 'Сохраняем…';
+        try {
+          await api(editingId ? `/api/notes/${editingId}` : `/api/clients/${state.notesClient.id}/notes`, {
+            method: editingId ? 'PUT' : 'POST',
+            body: { body }
+          });
+          resetNoteForm();
+          showToast(editingId ? 'Заметка обновлена.' : 'Заметка добавлена.');
+          await loadNotes(state.notesClient.id);
+        } catch (error) {
+          setFormError(el.notesError, error.message);
+        } finally {
+          el.noteSubmit.disabled = false;
+          el.noteSubmit.textContent = state.editingNoteId ? 'Сохранить изменения' : 'Добавить заметку';
         }
       });
 
       document.addEventListener('click', async (event) => {
+        const editDealButton = event.target.closest('[data-edit-deal]');
+        if (editDealButton) {
+          const deal = state.deals.find((item) => String(item.id) === editDealButton.dataset.editDeal);
+          if (deal) openDealDialog(deal);
+          return;
+        }
+
+        const editClientButton = event.target.closest('[data-edit-client]');
+        if (editClientButton) {
+          const client = state.clients.find((item) => String(item.id) === editClientButton.dataset.editClient);
+          if (client) openClientDialog(client);
+          return;
+        }
+
+        const notesButton = event.target.closest('[data-notes-client]');
+        if (notesButton) {
+          const client = state.clients.find((item) => String(item.id) === notesButton.dataset.notesClient);
+          if (client) openNotes(client);
+          return;
+        }
+
+        const editNoteButton = event.target.closest('[data-edit-note]');
+        if (editNoteButton) {
+          editNote(editNoteButton.dataset.editNote);
+          return;
+        }
+
+        const deleteNoteButton = event.target.closest('[data-delete-note]');
+        if (deleteNoteButton) {
+          if (!window.confirm('Удалить эту заметку?')) return;
+          try {
+            await api(`/api/notes/${deleteNoteButton.dataset.deleteNote}`, { method: 'DELETE' });
+            if (String(state.editingNoteId) === deleteNoteButton.dataset.deleteNote) resetNoteForm();
+            showToast('Заметка удалена.');
+            if (state.notesClient) await loadNotes(state.notesClient.id);
+          } catch (error) {
+            showToast(error.message, true);
+          }
+          return;
+        }
+
         const dealButton = event.target.closest('[data-delete-deal]');
         if (dealButton) {
           if (!window.confirm('Удалить эту сделку? Действие необратимо.')) return;
@@ -1391,7 +1783,10 @@
           if (!window.confirm('Удалить клиента вместе со всеми его сделками?')) return;
           try {
             await api(`/api/clients/${clientButton.dataset.deleteClient}`, { method: 'DELETE' });
-            showToast('Клиент удален.');
+            if (state.notesClient && String(state.notesClient.id) === clientButton.dataset.deleteClient) {
+              closeDialog(el.notesDialog);
+            }
+            showToast('Клиент удалён.');
             await loadData();
           } catch (error) {
             showToast(error.message, true);
